@@ -60,6 +60,16 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
 `*cgraph-types-directory*` so it loads in-memory without repointing the user's
 `~/.cgraph/types` symlink.
 
+- **Coreference (traces): working.** A PARSIFAL trace (a bound gap in control/
+  raising) shares ONE cgraph concept with its antecedent. Parsing
+  *"the boy persuaded the girl to go ."* yields
+  `[PERSUADE]-(agnt)→[BOY] (rcpt)→[GIRL]←(agnt)←[GO].` — `[GIRL]` is a single
+  shared node: the recipient of PERSUADE and the agent of GO. See
+  `test/extract-coref-headless.lisp`. (The matrix→complement arc — persuade's
+  object being the *going* — is skipped for now: a clausal complement is an ACT,
+  which doesn't fit an entity-typed case. Proper proposition/context embedding of
+  clausal complements is a separate step.)
+
 Mapping/policy knobs: `*case-role->relation*` (AGT→agnt, NEUT→obj, DAT→rcpt),
 `*on-missing-type*` (`:error`/`:create`/`:top`), `*predicate-root*`.
 

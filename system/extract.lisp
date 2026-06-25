@@ -89,27 +89,37 @@ surface word when the head can't be located."
 recursion path, used to break structural cycles (as ctree1 does)."
   (cond
     ((null filler) (list :kind :empty))
+    ;; A trace: a bound gap (control/raising). Carry the antecedent node so the
+    ;; emitter can share its concept (coreference), plus its head-noun lemma.
     ((pa::is-any-of filler '(pa::trace pa::*))
-     (list :kind :trace
-           :binding (pa::binding filler)
-           :words   (and (pa::binding filler) (pa::node-words (pa::binding filler)))))
+     (let ((b (pa::binding filler)))
+       (list :kind :trace
+             :binding b
+             :lemma   (and b (binding-lemma b))
+             :words   (and b (pa::node-words b)))))
     ;; Both clauses and NPs carry a `pred' in their case frame (an NP's pred is
     ;; its head noun -- cf. ctree's "PRED: BOY"). Distinguish by filled cases:
     ;; a predicate clause has them, a plain NP does not.
     ((pa::getc 'pa::pred filler)
      (cond
        ((member filler seen :test #'equal)
-        (list :kind :backref :lemma (pa::getc 'pa::pred filler)))
+        (list :kind :backref :node filler :lemma (pa::getc 'pa::pred filler)))
        ((pa::getc 'pa::cases filler)
         (clause->ir filler (cons filler seen)))
        (t
-        (list :kind :entity
+        (list :kind :entity :node filler
               :lemma (pa::getc 'pa::pred filler)
               :words (pa::node-words filler)))))
     (t
-     (list :kind :entity
+     (list :kind :entity :node filler
            :lemma (entity-lemma filler)
            :words (pa::node-words filler)))))
+
+(defun binding-lemma (node)
+  "Head-noun lemma of a trace's antecedent NODE (its case-frame pred, else its
+head noun)."
+  (or (ignore-errors (pa::getc 'pa::pred node))
+      (entity-lemma node)))
 
 (defun clause->ir (node seen)
   "Convert a predicate-bearing NODE into a clause IR."
@@ -160,10 +170,22 @@ concept-type the surrounding relation demands (used only under
 concept-type object or a symbol."
   (if (symbolp type-designator) type-designator (cg::label type-designator)))
 
+(defvar *node->concept*)   ; PARSIFAL node -> emitted cgraph concept, for this extraction
+
+(defun concept-for-node (node lemma required-type)
+  "Concept for PARSIFAL NODE, reusing the one already emitted for it if present
+-- this is how coreference is realized: a trace and its antecedent map to the
+SAME node, hence the same concept (one node, several arcs). Otherwise create a
+concept of type LEMMA, register it under NODE, and return it."
+  (or (and node (gethash node *node->concept*))
+      (let ((concept (concept-for lemma required-type)))
+        (when node (setf (gethash node *node->concept*) concept))
+        concept)))
+
 (defun emit-clause (ir)
   "Emit clause IR into the current context; return its predicate concept.
 Builds  [PRED]->(rel)->[FILLER]  for each mapped, filled case."
-  (let ((pred-concept (concept-for (getf ir :pred) *predicate-root*)))
+  (let ((pred-concept (concept-for-node (getf ir :node) (getf ir :pred) *predicate-root*)))
     (dolist (case (getf ir :cases))
       (let* ((role      (getf case :role))
              (filler    (getf case :filler))
@@ -173,23 +195,52 @@ Builds  [PRED]->(rel)->[FILLER]  for each mapped, filled case."
                  (dest-type (cg::dest-type (cg::relation-type relation)))
                  (filler-concept (emit-filler filler dest-type)))
             (when filler-concept
-              (cg::add-arc-into-relation pred-concept relation)
-              (cg::set-arc-from-relation relation filler-concept))))))
+              (cond
+                ((arc-dest-ok-p filler-concept relation)
+                 (cg::add-arc-into-relation pred-concept relation)
+                 (cg::set-arc-from-relation relation filler-concept))
+                ;; A clausal complement (an ACT) doesn't fit an entity-typed
+                ;; case such as NEUT->obj. Skip this matrix arc: the embedded
+                ;; clause is still emitted and stays connected to the matrix via
+                ;; any shared (coreferent) argument. Proper proposition/context
+                ;; embedding of the complement is a separate step.
+                ((eq (getf filler :kind) :clause)
+                 (warn "cg-from-parse: clausal complement [~a] not linked from [~a] via (~a)"
+                       (getf filler :pred) (getf ir :pred) rel-label))
+                ;; A real type mismatch on an entity/trace filler: let cgraph
+                ;; raise its detailed diagnostic.
+                (t
+                 (cg::add-arc-into-relation pred-concept relation)
+                 (cg::set-arc-from-relation relation filler-concept))))))))
     pred-concept))
 
+(defun arc-dest-ok-p (concept relation)
+  "Would CONCEPT satisfy RELATION's out-arc (dest) type? Mirrors the test in
+set-arc-from-relation, so we can decide before mutating the graph."
+  (let ((ct (cg::concept-type concept))
+        (dt (cg::dest-type (cg::relation-type relation))))
+    (or (typep ct 'string)
+        (cg::supertype-p ct dt)
+        (equal ct (cg::label dt)))))
+
 (defun emit-filler (filler required-type)
-  "Emit a filler IR; return its concept (or NIL for fillers we don't yet
-realize as concepts, e.g. unbound traces)."
+  "Emit a filler IR; return its concept (or NIL for fillers we don't realize as
+concepts, e.g. an unbound trace)."
   (case (getf filler :kind)
-    (:clause (emit-clause filler))
-    (:entity (concept-for (getf filler :lemma) required-type))
-    ;; TODO: :trace -> coreference link to the antecedent's concept;
-    ;;       :backref -> reuse the already-emitted concept.
+    (:clause  (emit-clause filler))
+    (:entity  (concept-for-node (getf filler :node) (getf filler :lemma) required-type))
+    ;; Trace: reuse (or create + register) the antecedent's concept -> the
+    ;; controlled argument is the SAME concept node as its controller.
+    (:trace   (let ((b (getf filler :binding)))
+                (and b (concept-for-node b (getf filler :lemma) required-type))))
+    ;; Backref (structural cycle): reuse the concept already emitted for the node.
+    (:backref (and (getf filler :node) (gethash (getf filler :node) *node->concept*)))
     (t nil)))
 
 (defun ir->cgraph (ir)
   "Emit a complete cgraph graph from clause IR, in a fresh child context."
-  (let ((cg::*context* (cg::make-context cg::*context*)))
+  (let ((cg::*context*    (cg::make-context cg::*context*))
+        (*node->concept*  (make-hash-table :test 'equal)))
     (cg::make-cgraph (emit-clause ir) cg::*context*)))
 
 ;;; ===========================================================================
