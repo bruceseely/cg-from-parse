@@ -28,8 +28,9 @@
 ;;;   (:role ROLE-SYMBOL :gfunc GFUNC-SYMBOL :filler FILLER)
 ;;; A filler is one of:
 ;;;   (:kind :clause  ...)                       ; nested predicate (recurse)
-;;;   (:kind :entity  :node N :lemma LEMMA :words (W..) :mods (CLAUSE-IR..))
-;;;                                              ; an NP; :mods = relative clauses
+;;;   (:kind :entity  :node N :lemma LEMMA :words (W..) :adjs (ADJ..)
+;;;                   :mods (CLAUSE-IR..))       ; an NP; :adjs = adjectives,
+;;;                                              ; :mods = relative clauses
 ;;;   (:kind :trace   :binding PA-NODE :words (W..)) ; a bound trace (coref)
 ;;;   (:kind :backref :lemma LEMMA)               ; structural cycle, not recursed
 ;;;   (:kind :empty)                              ; nil filler
@@ -73,6 +74,12 @@ created (see *on-missing-type*). All case relations require an ACT source.")
 (defparameter *clausal-complement-type* 'cg::proposition
   "Graph-compatible concept type that wraps an embedded clause as a context,
 i.e. [PROPOSITION: <inner graph>]. Must be a graph-compatible type.")
+
+(defparameter *adjective-relation* 'cg::attr
+  "Relation linking a noun to an adjective modifier: [NOUN]->(attr)->[ADJ]
+(attr: ENTITY -> ATTRIBUTE). Adjectives outside the ATTRIBUTE branch (e.g. an
+age word) won't fit and are skipped with a warning; with *on-missing-type*
+:create an unknown adjective is created under ATTRIBUTE so it fits.")
 
 (defparameter *clausal-complement-relation* 'cg::prop
   "Relation linking a matrix predicate to its clausal-complement proposition.
@@ -129,12 +136,22 @@ recursion path, used to break structural cycles (as ctree1 does)."
         (list :kind :entity :node filler
               :lemma (pa::getc 'pa::pred filler)
               :words (pa::node-words filler)
+              :adjs  (adjective-lemmas filler)
               :mods  (clausal-mods filler seen)))))
     (t
      (list :kind :entity :node filler
            :lemma (entity-lemma filler)
            :words (pa::node-words filler)
+           :adjs  (adjective-lemmas filler)
            :mods  (clausal-mods filler seen)))))
+
+(defun adjective-lemmas (np-node)
+  "Adjective words attached to NP-NODE as surface `adj' daughters (e.g. BIG in
+\"the big dog\"). PP adjuncts are NOT here -- PARSIFAL drops a verb-unlicensed
+PP entirely, and a licensed one is already a case; see notes/next-steps.md."
+  (loop for adj in (ignore-errors (pa::daughters 'pa::adj np-node))
+        for w = (and adj (ignore-errors (pa::getr 'pa::word adj)))
+        when w collect w))
 
 (defun binding-lemma (node)
   "Head-noun lemma of a trace's antecedent NODE (its case-frame pred, else its
@@ -315,6 +332,9 @@ concepts, e.g. an unbound trace)."
     (:clause  (emit-clause-as-proposition filler))
     (:entity  (let ((concept (concept-for-node (getf filler :node)
                                                (getf filler :lemma) required-type)))
+                ;; Adjective modifiers: [NOUN]->(attr)->[ADJ].
+                (dolist (adj (getf filler :adjs))
+                  (emit-modifier concept *adjective-relation* adj))
                 ;; Relative clauses: assert each as a predicate in THIS context.
                 ;; The head's concept is already registered, so the relative gap
                 ;; (a trace bound back to the head) shares it -- one node, the
@@ -326,6 +346,20 @@ concepts, e.g. an unbound trace)."
     ;; Backref (structural cycle): reuse the concept already emitted for the node.
     (:backref (and (getf filler :node) (gethash (getf filler :node) *node->concept*)))
     (t nil)))
+
+(defun emit-modifier (source-concept rel-label lemma)
+  "Emit [SOURCE]->(REL)->[LEMMA] -- e.g. a noun's adjective. Skips (with a
+warning) when LEMMA's type doesn't fit the relation's dest, so an out-of-branch
+modifier never aborts the extraction."
+  (let* ((relation   (cg::make-relation rel-label))
+         (dest-type  (cg::dest-type (cg::relation-type relation)))
+         (mod-concept (concept-for lemma dest-type)))
+    (if (arc-dest-ok-p mod-concept relation)
+        (progn (cg::add-arc-into-relation source-concept relation)
+               (cg::set-arc-from-relation relation mod-concept))
+        (warn "cg-from-parse: modifier [~a] not linked via (~a): type ~a doesn't fit dest ~a"
+              lemma rel-label
+              (cg::label (cg::concept-type mod-concept)) (cg::label dest-type)))))
 
 (defun emit-clause-as-proposition (ir)
   "Embed clause IR as a graph-referent concept [PROPOSITION: <inner graph>].

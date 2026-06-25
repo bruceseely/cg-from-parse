@@ -88,6 +88,12 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   the book ."* and prepositional dative *"… gives the book to the woman ."* both
   yield `[GIVE]-(agnt)→[MAN] (obj)→[BOOK] (rcpt)→[WOMAN].` (the `to`-PP fills the
   DAT case). See `test/extract-ditransitive-headless.lisp`.
+- **Adjective modifiers: working.** *"the big dog sees the man ."* →
+  `[SEE]-(agnt)→[DOG]→(attr)→[BIG] (obj)→[MAN].` An adjective (a surface `adj`
+  daughter of its NP) becomes `[NOUN]→(attr)→[ADJ]`. See
+  `test/extract-modifier-headless.lisp`. (PP adjuncts are a different story:
+  PARSIFAL drops a verb-unlicensed PP entirely, and a licensed one is already a
+  case — so they yield no extra extractable content; see `notes/next-steps.md`.)
 - **Thematic roles:** `*case-role->relation*` maps agt→agnt, neut→obj, dat→rcpt,
   loc→loc, manr→manr. Each is `[PRED]→(rel)→[filler]` so only act-source relations
   belong. Note: PP *adjuncts* (locatives/instruments) are surface-only (not in the

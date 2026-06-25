@@ -58,9 +58,24 @@ sees") didn't parse with this grammar union (only as an NP utterance); and the
 NP-utterance entry point ("the boy who you met .") isn't wired (extract-graph
 expects a clause). Reduced relatives ("the boy you met") untested.
 
-## 5. Modifiers (`getc 'mods`)
-Adjective/adverb/PP modifiers (ctree's `MOD:` lines). The reader ignores them
-today. Map to attr / manr / loc / ... relations. Add `:mods` to the IR and emit.
+## 5. Modifiers / PP adjuncts  — PARTIALLY DONE (adjectives)
+ADJECTIVES work: an adjective attaches to its NP as a surface `adj' daughter;
+`adjective-lemmas' reads it (entity IR :adjs) and `emit-modifier' adds
+[NOUN]->(attr)->[ADJ]. "the big dog sees the man ." ->
+`[SEE]-(agnt)→[DOG]→(attr)→[BIG] (obj)→[MAN].` (BIG :created under ATTRIBUTE).
+See test/extract-modifier-headless.lisp. `*adjective-relation*` (default attr);
+adjectives outside the ATTRIBUTE branch are skipped with a warning (a smarter
+adjective-class -> relation map, e.g. age word -> `age' relation, is future work).
+
+PP ADJUNCTS are NOT extractable as-is: PARSIFAL DROPS a verb-unlicensed PP
+("the man sees the dog in the park") entirely -- absent from the case frame AND
+the surface tree (VP and NP daughters) -- while a licensed PP is already a case
+(give's to->dat). So no extra content to extract. A verb that licenses a loc/inst
+PP (e.g. "put", "change") would surface it as a case (loc/manr already mapped),
+but none is in test-types.
+
+Still open under modifiers: adverbs (manr), genitives/possessives (poss), and
+adjective-class-specific relations.
 
 ## 6. Reconsider the `prop` relation
 `*clausal-complement-relation*` defaults to `prop`, auto-invented as
