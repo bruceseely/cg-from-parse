@@ -1,0 +1,13 @@
+# Compiled Lisp
+*.fasl
+*.fas
+*.lx64fsl
+*.dx64fsl
+.cache/
+
+# Editor / OS
+*~
+.DS_Store
+
+# Claude Code local settings
+.claude/settings.local.json
