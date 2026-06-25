@@ -84,8 +84,8 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   same context, and its gap (trace or bound relative pronoun) shares the head's
   concept — BOY is one node, agent of both seeings. See
   `test/extract-relative-headless.lisp`.
-- **Ditransitives: working.** Double-object *"the man gives the woman the dog ."*
-  fills AGT/DAT/NEUT → `[GIVE]-(agnt)→[MAN] (obj)→[DOG] (rcpt)→[WOMAN].` See
+- **Ditransitives: working.** Double-object *"the man gives the woman the book ."*
+  fills AGT/DAT/NEUT → `[GIVE]-(agnt)→[MAN] (obj)→[BOOK] (rcpt)→[WOMAN].` See
   `test/extract-ditransitive-headless.lisp`.
 - **Tense/aspect: extracted onto the predicate concept.** The PARSIFAL aux SPEC
   features map to cgraph `concept-tense` (:past/:present/:future) and

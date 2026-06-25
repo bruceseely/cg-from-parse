@@ -21,12 +21,12 @@ PARSIFAL's full role inventory (from case.l / defs.l markersets) and extend:
 instrument→inst, location→loc, etc. Unmapped roles are silently dropped today.
 
 ## 3. Ditransitives  — DONE
-Works with no code changes. "the man gives the woman the dog ." (double object)
+Works with no code changes. "the man gives the woman the book ." (double object)
 parses with the transitive grammar; give fills AGT/DAT/NEUT → agnt/rcpt/obj:
-`[GIVE]-(agnt)→[MAN] (obj)→[DOG] (rcpt)→[WOMAN].` (all in test-types, strict
-:error). See test/extract-ditransitive-headless.lisp. NB: chose woman/dog as
-recipient/theme because PARSIFAL's book/ball aren't in test-types.
-Still open: prepositional dative ("gives the dog to the woman") needs the PP
+`[GIVE]-(agnt)→[MAN] (obj)→[BOOK] (rcpt)→[WOMAN].` (all in test-types, strict
+:error; book added to test-types as object⊓information 2026-06-25).
+See test/extract-ditransitive-headless.lisp.
+Still open: prepositional dative ("gives the book to the woman") needs the PP
 rules + a `to`-PP → rcpt mapping.
 
 ## 4. Relative clauses  — DONE (subject relatives in a sentence)
