@@ -93,10 +93,19 @@ recursion path, used to break structural cycles (as ctree1 does)."
      (list :kind :trace
            :binding (pa::binding filler)
            :words   (and (pa::binding filler) (pa::node-words (pa::binding filler)))))
+    ;; Both clauses and NPs carry a `pred' in their case frame (an NP's pred is
+    ;; its head noun -- cf. ctree's "PRED: BOY"). Distinguish by filled cases:
+    ;; a predicate clause has them, a plain NP does not.
     ((pa::getc 'pa::pred filler)
-     (if (member filler seen :test #'equal)
-         (list :kind :backref :lemma (pa::getc 'pa::pred filler))
-         (clause->ir filler (cons filler seen))))
+     (cond
+       ((member filler seen :test #'equal)
+        (list :kind :backref :lemma (pa::getc 'pa::pred filler)))
+       ((pa::getc 'pa::cases filler)
+        (clause->ir filler (cons filler seen)))
+       (t
+        (list :kind :entity
+              :lemma (pa::getc 'pa::pred filler)
+              :words (pa::node-words filler)))))
     (t
      (list :kind :entity
            :lemma (entity-lemma filler)
@@ -134,7 +143,10 @@ concept-type the surrounding relation demands (used only under
     (cond
       (ctype (cg::make-concept ctype nil))
       ((eq *on-missing-type* :create)
-       (cg::make-concept-type (string name)
+       ;; NB: make-concept-type must get a SYMBOL here -- the STRING method
+       ;; (types.lisp) forces the supertype to WORD and ignores supertypes-list;
+       ;; the symbol method honors it.
+       (cg::make-concept-type name
                               :supertypes-list (list (type-label required-type)))
        (cg::make-concept (cg::get-concept-type name) nil))
       ((eq *on-missing-type* :top)
