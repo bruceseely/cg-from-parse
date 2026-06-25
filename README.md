@@ -39,8 +39,26 @@ symbol conflicts between their large export sets.
 
 ## Status
 
-Scaffold only. `cg-from-parse:extract-graph` is the entry point and currently
-signals "not yet implemented".
+Under construction. The pipeline is split at an intermediate representation (IR):
+
+```
+PARSIFAL parse  --parse->ir-->  IR  --ir->cgraph-->  cgraph graph
+```
+
+- **`ir->cgraph` (emission): working & tested.** A clause IR emits the right
+  conceptual graph, type-checked against the real ontology. E.g. the IR for
+  *"the dog eats the cake"* produces `[EAT]-(agnt)→[DOG] (obj)→[CAKE].` See
+  `test/extract-emit-headless.lisp`.
+- **`parse->ir` (reader): implemented, pending live validation.** It mirrors
+  PARSIFAL's own `ctree` traversal (pred + filled cases, recursing into clausal
+  fillers, traces via their binding). Still to be exercised end-to-end against a
+  live parse with a co-loaded grammar + matching type catalog.
+
+Mapping/policy knobs: `*case-role->relation*` (AGT→agnt, NEUT→obj, DAT→rcpt),
+`*on-missing-type*` (`:error`/`:create`/`:top`), `*predicate-root*`.
+
+`cg-from-parse:extract-graph` is the top-level entry: `(extract-graph)` reads
+the parse left in `pa::c` by `parse-sentence`.
 
 ## Tests
 
