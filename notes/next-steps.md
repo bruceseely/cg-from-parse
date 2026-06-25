@@ -15,10 +15,25 @@ so it's verified via the slot, not the text. "sees" -> :present, "persuaded" ->
 Still TODO here: progressive aspect (not distinguished in the base feature set),
 modal (cgraph has no modal slot — needs a representation), and voice (passive).
 
-## 2. More thematic roles
-`*case-role->relation*` currently maps only AGT→agnt, NEUT→obj, DAT→rcpt. Learn
-PARSIFAL's full role inventory (from case.l / defs.l markersets) and extend:
-instrument→inst, location→loc, etc. Unmapped roles are silently dropped today.
+## 2. More thematic roles  — PARTIALLY DONE
+Map extended with loc→loc and manner→manr (in addition to agt/neut/dat). Also
+confirmed the PREPOSITIONAL DATIVE works: "the man gives the book to the woman ."
+fills DAT via the `to' PP → same `[GIVE]-(agnt)→[MAN] (obj)→[BOOK] (rcpt)→[WOMAN]`
+as the double object (tested).
+
+KEY CONSTRAINTS discovered:
+- Every case relation is emitted as [PRED]->(rel)->[filler], so the predicate
+  (an ACT/EVENT) is the SOURCE. Only relations whose source accepts an act may be
+  added (rules out poss/from/goal — sources animate/entity/state).
+- PARSIFAL's full role inventory (dict frequency): neut, time, agt, to, loc,
+  poss, dat, from, source, com, with, goal, benef, manner. But the available
+  verbs (see/give/persuade) only LICENSE agt/neut/dat (+ give's to→dat). loc/manr
+  are wired but won't surface until a verb licenses them.
+- **PP adjuncts are NOT in the case frame.** "the man sees the dog in the park"
+  drops "in the park" from cases AND mods — it's surface-only (VP daughters).
+  So locative/instrument/temporal ADJUNCTS need walking the SURFACE tree, a
+  different mechanism than the case-frame reader. That's the real path to more
+  roles; fold with #5.
 
 ## 3. Ditransitives  — DONE
 Works with no code changes. "the man gives the woman the book ." (double object)

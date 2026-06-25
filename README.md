@@ -84,9 +84,14 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   same context, and its gap (trace or bound relative pronoun) shares the head's
   concept — BOY is one node, agent of both seeings. See
   `test/extract-relative-headless.lisp`.
-- **Ditransitives: working.** Double-object *"the man gives the woman the book ."*
-  fills AGT/DAT/NEUT → `[GIVE]-(agnt)→[MAN] (obj)→[BOOK] (rcpt)→[WOMAN].` See
-  `test/extract-ditransitive-headless.lisp`.
+- **Ditransitives: working, both forms.** Double-object *"the man gives the woman
+  the book ."* and prepositional dative *"… gives the book to the woman ."* both
+  yield `[GIVE]-(agnt)→[MAN] (obj)→[BOOK] (rcpt)→[WOMAN].` (the `to`-PP fills the
+  DAT case). See `test/extract-ditransitive-headless.lisp`.
+- **Thematic roles:** `*case-role->relation*` maps agt→agnt, neut→obj, dat→rcpt,
+  loc→loc, manr→manr. Each is `[PRED]→(rel)→[filler]` so only act-source relations
+  belong. Note: PP *adjuncts* (locatives/instruments) are surface-only (not in the
+  case frame), so loc/manr need a verb that licenses them — see `notes/next-steps.md`.
 - **Tense/aspect: extracted onto the predicate concept.** The PARSIFAL aux SPEC
   features map to cgraph `concept-tense` (:past/:present/:future) and
   `concept-aspect` (:perfect). "the man sees the dog" → SEE is `:present`; "the

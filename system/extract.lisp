@@ -41,11 +41,19 @@
 ;;; ===========================================================================
 
 (defparameter *case-role->relation*
-  (list (cons 'pa::agt  'cg::agnt)    ; agent     -> agnt  (ACT -> ANIMATE)
-        (cons 'pa::neut 'cg::obj)     ; neutral   -> obj   (ACT -> ENTITY)
-        (cons 'pa::dat  'cg::rcpt))   ; dative    -> rcpt  (ACT -> ANIMATE)
-  "PARSIFAL thematic case roles (in :parsifal) mapped to cgraph relation
-labels (in :conceptual-graphs). Extend as more roles are handled.")
+  (list (cons 'pa::agt    'cg::agnt)   ; agent     -> agnt  (ACT -> ANIMATE)
+        (cons 'pa::neut   'cg::obj)    ; neutral   -> obj   (ACT -> ENTITY)
+        (cons 'pa::dat    'cg::rcpt)   ; dative    -> rcpt  (ACT -> ANIMATE)
+        (cons 'pa::loc    'cg::loc)    ; location  -> loc   (⊤   -> PLACE)
+        (cons 'pa::manner 'cg::manr))  ; manner    -> manr  (ACT -> MANNER)
+  "PARSIFAL thematic case roles (in :parsifal) mapped to cgraph relation labels
+(in :conceptual-graphs). Each relation is emitted as [PRED]->(rel)->[filler], so
+the predicate (an ACT/EVENT) is the SOURCE -- only relations whose source accepts
+an act belong here (that excludes poss/from/goal, whose sources are
+animate/entity/state). agt/neut/dat are exercised by the test verbs; the
+prepositional dative (give's `to' PP) also fills DAT. loc/manr are wired and
+correct but need a verb that licenses them (or surface-tree PP-adjunct handling,
+see notes/next-steps.md) to surface -- PP adjuncts are NOT in the case frame.")
 
 (defparameter *predicate-root* 'cg::act
   "Concept-type a predicate (verb) lemma is placed under when it must be
