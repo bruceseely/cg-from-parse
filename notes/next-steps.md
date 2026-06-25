@@ -20,10 +20,14 @@ modal (cgraph has no modal slot — needs a representation), and voice (passive)
 PARSIFAL's full role inventory (from case.l / defs.l markersets) and extend:
 instrument→inst, location→loc, etc. Unmapped roles are silently dropped today.
 
-## 3. Ditransitives
-"give" → agnt/obj/rcpt. Grammar: `*ditransitive-*` / two-object rule groups.
-Likely works structurally already; needs a test (e.g. "the man gives the dog the
-cake") and confirmation the three cases map cleanly.
+## 3. Ditransitives  — DONE
+Works with no code changes. "the man gives the woman the dog ." (double object)
+parses with the transitive grammar; give fills AGT/DAT/NEUT → agnt/rcpt/obj:
+`[GIVE]-(agnt)→[MAN] (obj)→[DOG] (rcpt)→[WOMAN].` (all in test-types, strict
+:error). See test/extract-ditransitive-headless.lisp. NB: chose woman/dog as
+recipient/theme because PARSIFAL's book/ball aren't in test-types.
+Still open: prepositional dative ("gives the dog to the woman") needs the PP
+rules + a `to`-PP → rcpt mapping.
 
 ## 4. Relative clauses
 e.g. "the dog that the man sees" — a trace (object/subject gap) bound to the head

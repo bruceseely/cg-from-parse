@@ -78,6 +78,9 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   occurrences sharing a coreference label (`?x1`). Knobs:
   `*clausal-complement-type*` (default `proposition`).
 
+- **Ditransitives: working.** Double-object *"the man gives the woman the dog ."*
+  fills AGT/DAT/NEUT → `[GIVE]-(agnt)→[MAN] (obj)→[DOG] (rcpt)→[WOMAN].` See
+  `test/extract-ditransitive-headless.lisp`.
 - **Tense/aspect: extracted onto the predicate concept.** The PARSIFAL aux SPEC
   features map to cgraph `concept-tense` (:past/:present/:future) and
   `concept-aspect` (:perfect). "the man sees the dog" → SEE is `:present`; "the
