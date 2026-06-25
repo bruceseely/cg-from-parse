@@ -61,6 +61,15 @@ created (see *on-missing-type*). All case relations require an ACT source.")
   "cgraph relation label for PARSIFAL thematic ROLE, or NIL if unmapped."
   (cdr (assoc role *case-role->relation*)))
 
+(defparameter *clausal-complement-type* 'cg::proposition
+  "Graph-compatible concept type that wraps an embedded clause as a context,
+i.e. [PROPOSITION: <inner graph>]. Must be a graph-compatible type.")
+
+(defparameter *clausal-complement-relation* 'cg::prop
+  "Relation linking a matrix predicate to its clausal-complement proposition.
+Auto-ensured (source ⊤, dest *clausal-complement-type*) if absent, since no
+standard case relation accepts a proposition dest. Rebind to taste.")
+
 ;;; ===========================================================================
 ;;; Reading layer:  PARSIFAL parse  ->  IR
 ;;; ===========================================================================
@@ -170,7 +179,9 @@ concept-type the surrounding relation demands (used only under
 concept-type object or a symbol."
   (if (symbolp type-designator) type-designator (cg::label type-designator)))
 
-(defvar *node->concept*)   ; PARSIFAL node -> emitted cgraph concept, for this extraction
+(defvar *node->concept*)    ; PARSIFAL node -> emitted cgraph concept, for this extraction
+(defvar *node->corefvar*)   ; PARSIFAL node -> coreference label (for cross-context coref)
+(defvar *corefvar-counter*) ; allocates fresh coreference labels
 
 (defun concept-for-node (node lemma required-type)
   "Concept for PARSIFAL NODE, reusing the one already emitted for it if present
@@ -184,12 +195,17 @@ concept of type LEMMA, register it under NODE, and return it."
 
 (defun emit-clause (ir)
   "Emit clause IR into the current context; return its predicate concept.
-Builds  [PRED]->(rel)->[FILLER]  for each mapped, filled case."
+Builds  [PRED]->(rel)->[FILLER]  for each mapped, filled case. A clausal-
+complement filler is embedded as a proposition and linked via the proposition
+relation instead of the case's entity-typed relation."
   (let ((pred-concept (concept-for-node (getf ir :node) (getf ir :pred) *predicate-root*)))
     (dolist (case (getf ir :cases))
       (let* ((role      (getf case :role))
              (filler    (getf case :filler))
-             (rel-label (case-role->relation role)))
+             (clausal   (eq (getf filler :kind) :clause))
+             (rel-label (if clausal
+                            *clausal-complement-relation*
+                            (case-role->relation role))))
         (when rel-label
           (let* ((relation  (cg::make-relation rel-label))
                  (dest-type (cg::dest-type (cg::relation-type relation)))
@@ -199,12 +215,9 @@ Builds  [PRED]->(rel)->[FILLER]  for each mapped, filled case."
                 ((arc-dest-ok-p filler-concept relation)
                  (cg::add-arc-into-relation pred-concept relation)
                  (cg::set-arc-from-relation relation filler-concept))
-                ;; A clausal complement (an ACT) doesn't fit an entity-typed
-                ;; case such as NEUT->obj. Skip this matrix arc: the embedded
-                ;; clause is still emitted and stays connected to the matrix via
-                ;; any shared (coreferent) argument. Proper proposition/context
-                ;; embedding of the complement is a separate step.
-                ((eq (getf filler :kind) :clause)
+                ;; Shouldn't normally happen now (clausal fillers go via the
+                ;; proposition relation); keep a graceful skip just in case.
+                (clausal
                  (warn "cg-from-parse: clausal complement [~a] not linked from [~a] via (~a)"
                        (getf filler :pred) (getf ir :pred) rel-label))
                 ;; A real type mismatch on an entity/trace filler: let cgraph
@@ -227,20 +240,79 @@ set-arc-from-relation, so we can decide before mutating the graph."
   "Emit a filler IR; return its concept (or NIL for fillers we don't realize as
 concepts, e.g. an unbound trace)."
   (case (getf filler :kind)
-    (:clause  (emit-clause filler))
+    ;; A clausal complement is embedded as a proposition context concept.
+    (:clause  (emit-clause-as-proposition filler))
     (:entity  (concept-for-node (getf filler :node) (getf filler :lemma) required-type))
-    ;; Trace: reuse (or create + register) the antecedent's concept -> the
-    ;; controlled argument is the SAME concept node as its controller.
-    (:trace   (let ((b (getf filler :binding)))
-                (and b (concept-for-node b (getf filler :lemma) required-type))))
+    (:trace   (emit-trace filler required-type))
     ;; Backref (structural cycle): reuse the concept already emitted for the node.
     (:backref (and (getf filler :node) (gethash (getf filler :node) *node->concept*)))
     (t nil)))
 
+(defun emit-clause-as-proposition (ir)
+  "Embed clause IR as a graph-referent concept [PROPOSITION: <inner graph>].
+The inner graph is built in a CHILD context (mirroring cgraph's own
+read-graph-referent-concept), so any coreference from inside back out to an
+enclosing concept must cross the context boundary (handled in emit-trace)."
+  (let* ((cg::*context*          (cg::make-context cg::*context*))
+         (cg::*concepts-in-graph* (list))
+         (pred-concept (emit-clause ir))
+         (graph        (cg::make-cgraph pred-concept cg::*context*))
+         (referent     (cg::make-referent graph nil)))
+    (cg::make-concept (cg::get-concept-type *clausal-complement-type*) referent)))
+
+(defun emit-trace (filler required-type)
+  "Realize a trace (control/raising gap) as coreference with its antecedent.
+Same context  -> the SAME concept node (shared-node identity coreference).
+Crossing into an embedded context -> a fresh bound occurrence (?x) linked to
+the antecedent's defining variable (*x), since cgraph forbids a shared node
+across contexts."
+  (let ((b (getf filler :binding)))
+    (when b
+      (let ((ante (gethash b *node->concept*)))
+        (cond
+          ;; Antecedent not emitted yet: behave like a normal entity (and
+          ;; register it, so a later mention of the same node shares it).
+          ((null ante)
+           (concept-for-node b (getf filler :lemma) required-type))
+          ;; Same context: identity coreference (one node, several arcs).
+          ((eq (cg::context ante) cg::*context*)
+           ante)
+          ;; Cross-context: a coreference label on both occurrences (cgraph's
+          ;; register-concept-coreference links the bound one to the antecedent;
+          ;; the formatter renders the shared label, e.g. [GIRL:?x1] on each).
+          (t
+           (let ((occ   (concept-for (getf filler :lemma) required-type))
+                 (label (corefvar-for b ante)))
+             (cg::register-concept-coreference occ label)
+             occ)))))))
+
+(defun corefvar-for (node ante)
+  "Coreference label for NODE, allocating one (and registering ANTE as its
+defining occurrence) on first use."
+  (or (gethash node *node->corefvar*)
+      (let ((label (intern (format nil "X~d" (incf *corefvar-counter*)) :cg)))
+        (setf (gethash node *node->corefvar*) label)
+        (cg::register-concept-coreference ante label)   ; defining occurrence
+        label)))
+
+(defun ensure-complement-relation ()
+  "Make sure *clausal-complement-relation* exists (source ⊤, dest the
+complement type), creating it if the catalog lacks it. Returns the label."
+  (let ((label *clausal-complement-relation*))
+    (unless (ignore-errors (cg::get-relation-type label))
+      (cg::make-relation-type label
+                              :source-types (list cg::*concept-type-top*)
+                              :dest-type    (cg::get-concept-type *clausal-complement-type*)
+                              :description  "clausal/propositional complement (cg-from-parse)"))
+    label))
+
 (defun ir->cgraph (ir)
   "Emit a complete cgraph graph from clause IR, in a fresh child context."
-  (let ((cg::*context*    (cg::make-context cg::*context*))
-        (*node->concept*  (make-hash-table :test 'equal)))
+  (let ((cg::*context*     (cg::make-context cg::*context*))
+        (*node->concept*   (make-hash-table :test 'equal))
+        (*node->corefvar*  (make-hash-table :test 'equal))
+        (*corefvar-counter* 0))
+    (ensure-complement-relation)
     (cg::make-cgraph (emit-clause ir) cg::*context*)))
 
 ;;; ===========================================================================

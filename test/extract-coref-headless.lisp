@@ -43,20 +43,26 @@
               (graph (handler-bind ((warning #'muffle-warning)) (ir->cgraph ir)))
               (text  (and graph (ignore-errors (cg::format-cgraph graph))))
               (up    (and (stringp text) (string-upcase text)))
-              ;; Coreference signature: the controlled "girl" is ONE shared node
-              ;; (reached from PERSUADE's rcpt and GO's agnt), so [GIRL] appears
-              ;; exactly once -- not duplicated into two separate concepts.
+              ;; The clausal complement "to go" is embedded as a PROPOSITION
+              ;; context. The controlled subject of GO corefers with the matrix
+              ;; object (the girl) ACROSS that context boundary, so it shows as
+              ;; two occurrences carrying the SAME coref label (cgraph forbids a
+              ;; shared node across contexts).
               (girl-nodes (and up (count-substr "[GIRL" up)))
+              (coref-marks (and up (count-substr "?X" up)))
               (pass (and graph up
-                         (search "PERSUADE" up) (search "BOY" up)
-                         (search "GIRL" up)     (search "GO" up)
-                         (search "AGNT" up)     (search "RCPT" up)
-                         (eql girl-nodes 1))))
+                         (search "PERSUADE" up)   (search "BOY" up)
+                         (search "GIRL" up)       (search "GO" up)
+                         (search "AGNT" up)       (search "RCPT" up)
+                         (search "PROPOSITION" up)        ; complement embedded
+                         (eql girl-nodes 2)               ; two coref occurrences
+                         (eql coref-marks 2))))           ; both carry the coref label
          (when verbose
            (format t "~&sentence:   ~a~%" sentence)
            (format t "~&IR:         ~s~%" ir)
            (format t "~&graph:~%~a~%" text)
-           (format t "~&girl nodes: ~a (1 = coreferent/shared)~%" girl-nodes))
+           (format t "~&girl nodes: ~a / coref-labelled: ~a (2+2 = coreferent across context)~%"
+                   girl-nodes coref-marks))
          (format t "~&extract-coref-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
          pass)))))
 
