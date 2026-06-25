@@ -5,12 +5,15 @@ priority order. Current state (2026-06-25): transitive clauses, control
 coreference (shared-node + cross-context `?x`), and clausal-complement embedding
 as `[PROPOSITION: …]` all work end-to-end. See README for what's done.
 
-## 1. Tense / aspect / modality (`spec`)
-The IR already carries `:spec` (e.g. `(AUX1 . 1)` = PAST; modal/perfect show up
-here too — cf. ctree's `SPEC:` line). Nothing consumes it yet. Map PARSIFAL aux
-features → cgraph concept annotations: `concept-tense` / `concept-aspect` /
-`concept-voice` (set by `apply-concept-annotations` in the reader; the slots live
-on `concept`). So `[PERSUADE]` should come out tense=past, etc.
+## 1. Tense / aspect / modality (`spec`)  — DONE (tense + perfect aspect)
+The reader maps the PARSIFAL aux SPEC node's features (pres/past/future, perf)
+to `:tense`/`:aspect` on the clause IR (`spec-tense`/`spec-aspect`), and
+`emit-clause` sets `concept-tense`/`concept-aspect` on the predicate concept.
+NB: the linear formatter does NOT render tense (it's "consumed by the realizer"),
+so it's verified via the slot, not the text. "sees" -> :present, "persuaded" ->
+:past (see live/coref headless tests).
+Still TODO here: progressive aspect (not distinguished in the base feature set),
+modal (cgraph has no modal slot — needs a representation), and voice (passive).
 
 ## 2. More thematic roles
 `*case-role->relation*` currently maps only AGT→agnt, NEUT→obj, DAT→rcpt. Learn

@@ -22,8 +22,8 @@
 ;;; --- IR shape --------------------------------------------------------------
 ;;;
 ;;; A clause / predicate:
-;;;   (:kind :clause :pred LEMMA :spec SPEC-OR-NIL :node PA-NODE
-;;;    :cases (CASE ...))
+;;;   (:kind :clause :pred LEMMA :spec SPEC-NODE-OR-NIL :node PA-NODE
+;;;    :tense :past/:present/:future/NIL :aspect :perfect/NIL :cases (CASE ...))
 ;;; A case (one filled thematic role):
 ;;;   (:role ROLE-SYMBOL :gfunc GFUNC-SYMBOL :filler FILLER)
 ;;; A filler is one of:
@@ -130,15 +130,34 @@ head noun)."
   (or (ignore-errors (pa::getc 'pa::pred node))
       (entity-lemma node)))
 
+(defun spec-tense (spec-node)
+  "cgraph tense keyword (:past / :present / :future) from a PARSIFAL aux SPEC
+node's features, or NIL (e.g. a tenseless infinitive)."
+  (when spec-node
+    (let ((fe (pa::fe spec-node)))
+      (cond ((member 'pa::past   fe) :past)
+            ((member 'pa::future fe) :future)
+            ((member 'pa::pres   fe) :present)
+            (t nil)))))
+
+(defun spec-aspect (spec-node)
+  "cgraph aspect keyword (:perfect) from a PARSIFAL aux SPEC node, or NIL.
+(Progressive isn't distinguished in the base feature set yet.)"
+  (when (and spec-node (member 'pa::perf (pa::fe spec-node)))
+    :perfect))
+
 (defun clause->ir (node seen)
   "Convert a predicate-bearing NODE into a clause IR."
-  (list :kind  :clause
-        :pred  (pa::getc 'pa::pred node)
-        :spec  (cadr (pa::getc 'pa::spec node))
-        :node  node
-        :cases (loop for (cname filler gfunc) in (reverse (pa::getc 'pa::cases node))
-                     collect (list :role cname :gfunc gfunc
-                                   :filler (filler->ir filler seen)))))
+  (let ((spec (cadr (pa::getc 'pa::spec node))))
+    (list :kind   :clause
+          :pred   (pa::getc 'pa::pred node)
+          :spec   spec
+          :tense  (spec-tense spec)
+          :aspect (spec-aspect spec)
+          :node   node
+          :cases  (loop for (cname filler gfunc) in (reverse (pa::getc 'pa::cases node))
+                        collect (list :role cname :gfunc gfunc
+                                      :filler (filler->ir filler seen))))))
 
 (defun parse->ir (node)
   "Build a clause IR from a PARSIFAL parse NODE. Flushes the open frame first
@@ -199,6 +218,11 @@ Builds  [PRED]->(rel)->[FILLER]  for each mapped, filled case. A clausal-
 complement filler is embedded as a proposition and linked via the proposition
 relation instead of the case's entity-typed relation."
   (let ((pred-concept (concept-for-node (getf ir :node) (getf ir :pred) *predicate-root*)))
+    ;; Carry tense/aspect onto the predicate concept (not shown by the linear
+    ;; formatter, but stored for the realizer / queries).
+    (let ((tense (getf ir :tense)) (aspect (getf ir :aspect)))
+      (when tense  (setf (cg::concept-tense pred-concept) tense))
+      (when aspect (setf (cg::concept-aspect pred-concept) aspect)))
     (dolist (case (getf ir :cases))
       (let* ((role      (getf case :role))
              (filler    (getf case :filler))

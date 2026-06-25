@@ -78,6 +78,12 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   occurrences sharing a coreference label (`?x1`). Knobs:
   `*clausal-complement-type*` (default `proposition`).
 
+- **Tense/aspect: extracted onto the predicate concept.** The PARSIFAL aux SPEC
+  features map to cgraph `concept-tense` (:past/:present/:future) and
+  `concept-aspect` (:perfect). "the man sees the dog" → SEE is `:present`; "the
+  boy persuaded …" → PERSUADE is `:past`. Note: the *linear* formatter doesn't
+  render tense (it's consumed by the realizer), so it lives on the concept slot.
+
 Mapping/policy knobs: `*case-role->relation*` (AGT→agnt, NEUT→obj, DAT→rcpt),
 `*on-missing-type*` (`:error`/`:create`/`:top`), `*predicate-root*`.
 

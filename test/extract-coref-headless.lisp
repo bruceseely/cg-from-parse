@@ -50,19 +50,22 @@
               ;; shared node across contexts).
               (girl-nodes (and up (count-substr "[GIRL" up)))
               (coref-marks (and up (count-substr "?X" up)))
+              (tense (and graph (cg::concept-tense (cg::head graph)))) ; "persuaded" = past
               (pass (and graph up
                          (search "PERSUADE" up)   (search "BOY" up)
                          (search "GIRL" up)       (search "GO" up)
                          (search "AGNT" up)       (search "RCPT" up)
                          (search "PROPOSITION" up)        ; complement embedded
                          (eql girl-nodes 2)               ; two coref occurrences
-                         (eql coref-marks 2))))           ; both carry the coref label
+                         (eql coref-marks 2)              ; both carry the coref label
+                         (eq tense :past))))              ; matrix tense
          (when verbose
            (format t "~&sentence:   ~a~%" sentence)
            (format t "~&IR:         ~s~%" ir)
            (format t "~&graph:~%~a~%" text)
            (format t "~&girl nodes: ~a / coref-labelled: ~a (2+2 = coreferent across context)~%"
-                   girl-nodes coref-marks))
+                   girl-nodes coref-marks)
+           (format t "~&matrix tense: ~s~%" tense))
          (format t "~&extract-coref-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
          pass)))))
 

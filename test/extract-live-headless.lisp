@@ -43,14 +43,19 @@
               (graph (ir->cgraph ir))
               (text  (ignore-errors (cg::format-cgraph graph)))
               (up    (and (stringp text) (string-upcase text)))
+              ;; tense is stored on the predicate concept (not shown in linear
+              ;; form); "sees" is present.
+              (tense (and graph (cg::concept-tense (cg::head graph))))
               (pass  (and graph (typep graph 'cg::graph) up
                           (search "SEE"  up) (search "AGNT" up)
                           (search "MAN"  up) (search "OBJ"  up)
-                          (search "DOG"  up))))
+                          (search "DOG"  up)
+                          (eq tense :present))))
          (when verbose
            (format t "~&sentence: ~a~%" sentence)
            (format t "~&IR:       ~s~%" ir)
-           (format t "~&graph:~%~a~%" text))
+           (format t "~&graph:~%~a~%" text)
+           (format t "~&tense:    ~s~%" tense))
          (format t "~&extract-live-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
          pass)))))
 
