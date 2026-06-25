@@ -53,8 +53,12 @@ PARSIFAL parse  --parse->ir-->  IR  --ir->cgraph-->  cgraph graph
   `ctree` traversal (pred + filled cases, recursing into clausal fillers, traces
   via their binding). The full pipeline runs end-to-end: parsing
   *"the man sees the dog ."* and extracting yields `[SEE]-(agnt)→[MAN] (obj)→[DOG].`
-  — all three resolve to real cgraph ontology types under strict
-  `*on-missing-type*` :error. See `test/extract-live-headless.lisp`.
+  See `test/extract-live-headless.lisp`.
+
+Headless tests load the controlled **test-types** catalog (not the user's
+customizable cgraph-types) via `test/test-setup.lisp`, which binds
+`*cgraph-types-directory*` so it loads in-memory without repointing the user's
+`~/.cgraph/types` symlink.
 
 Mapping/policy knobs: `*case-role->relation*` (AGT→agnt, NEUT→obj, DAT→rcpt),
 `*on-missing-type*` (`:error`/`:create`/`:top`), `*predicate-root*`.

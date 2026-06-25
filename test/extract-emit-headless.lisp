@@ -14,16 +14,10 @@
 
 (in-package :cg-from-parse)
 
-;; --- bring up a cgraph context with the user's ontology ---------------------
-;; Use the catalog ~/.cgraph/types already points at (the real cgraph-types) --
-;; do NOT pass :external-types-directory, which would re-symlink ~/.cgraph/types
-;; and leave it pointing elsewhere (a destructive side effect on the user's
-;; environment). eat/dog/cake all live in cgraph-types.
-;; NB: cgraph's type loaders use plain READ, so *package* must be :cg while
-;; loading or the relation-type catalog comes up empty (setup is normally :cg).
-(let ((*package* (find-package :conceptual-graphs)))
-  (cg::setup-cgraph (asdf:system-source-directory :cgraph))
-  (cg::reset-cgraph))
+;; Bring up the TEST-TYPES catalog non-destructively (eat/dog/cake live there).
+(load (merge-pathnames "test-setup.lisp"
+                       (or *load-truename* *compile-file-truename*)))
+(setup-test-cgraph)
 
 (defun extract-emit-headless-test (&optional (verbose t))
   (let* ((ir (list :kind :clause :pred 'pa::eat

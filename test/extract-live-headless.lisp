@@ -10,17 +10,17 @@
 ;;;     --load test/extract-live-headless.lisp
 ;;;
 ;;; "the man sees the dog ." -> SEE with agt=MAN (subj), neut=DOG (obj).
-;;; All three lemmas are real cgraph types (see=act, man/dog=animate), so the
-;;; case relations type-check with the default *on-missing-type* :error.
+;;; man/dog are in test-types; `see' is not (test-types is a controlled catalog,
+;;; not the user's full ontology), so this runs with *on-missing-type* :create:
+;;; man/dog resolve, SEE is created under ACT -- the realistic out-of-ontology
+;;; case, exercising the whole reader + emitter against a live parse.
 
 (in-package :cg-from-parse)
 
-;; 1. cgraph ontology (the real catalog via ~/.cgraph/types). *package* must be
-;;    :cg while loading: cgraph's type loaders use plain READ (see the emission
-;;    script's note).
-(let ((*package* (find-package :conceptual-graphs)))
-  (cg::setup-cgraph (asdf:system-source-directory :cgraph))
-  (cg::reset-cgraph))
+;; 1. cgraph TEST-TYPES catalog, brought up non-destructively.
+(load (merge-pathnames "test-setup.lisp"
+                       (or *load-truename* *compile-file-truename*)))
+(setup-test-cgraph)
 
 ;; 2. PARSIFAL grammar: load the clause-grammar rule groups and register the
 ;;    minimal transitive set (mirrors gram1-caseframe-test).
@@ -38,8 +38,8 @@
        (format t "~&extract-live-headless-test: parse FAILED for ~s <<<~%" sentence)
        nil)
       (t
-       (let* ((ir    (parse->ir pa::c))     ; default *on-missing-type* :error:
-                                            ; see/man/dog all resolve to real types
+       (let* ((*on-missing-type* :create)   ; man/dog in test-types; SEE created under ACT
+              (ir    (parse->ir pa::c))
               (graph (ir->cgraph ir))
               (text  (ignore-errors (cg::format-cgraph graph)))
               (up    (and (stringp text) (string-upcase text)))
