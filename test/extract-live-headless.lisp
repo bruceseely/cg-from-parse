@@ -38,9 +38,8 @@
        (format t "~&extract-live-headless-test: parse FAILED for ~s <<<~%" sentence)
        nil)
       (t
-       (let* ((*on-missing-type* :create)   ; real text has out-of-ontology words;
-                                            ; MAN/DOG resolve, SEE is created under ACT
-              (ir    (parse->ir pa::c))
+       (let* ((ir    (parse->ir pa::c))     ; default *on-missing-type* :error:
+                                            ; see/man/dog all resolve to real types
               (graph (ir->cgraph ir))
               (text  (ignore-errors (cg::format-cgraph graph)))
               (up    (and (stringp text) (string-upcase text)))

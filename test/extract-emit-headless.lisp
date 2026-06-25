@@ -14,15 +14,15 @@
 
 (in-package :cg-from-parse)
 
-;; --- bring up a cgraph context with the test-types catalog ------------------
+;; --- bring up a cgraph context with the user's ontology ---------------------
+;; Use the catalog ~/.cgraph/types already points at (the real cgraph-types) --
+;; do NOT pass :external-types-directory, which would re-symlink ~/.cgraph/types
+;; and leave it pointing elsewhere (a destructive side effect on the user's
+;; environment). eat/dog/cake all live in cgraph-types.
 ;; NB: cgraph's type loaders use plain READ, so *package* must be :cg while
-;; loading or the relation-type catalog comes up empty (a latent cgraph bug;
-;; setup is normally run inside :cg).
-(let ((*package*  (find-package :conceptual-graphs))
-      (types-dir (format nil "~atest/test-types/"
-                         (asdf:system-source-directory :cgraph))))
-  (cg::setup-cgraph (asdf:system-source-directory :cgraph)
-                    :external-types-directory types-dir)
+;; loading or the relation-type catalog comes up empty (setup is normally :cg).
+(let ((*package* (find-package :conceptual-graphs)))
+  (cg::setup-cgraph (asdf:system-source-directory :cgraph))
   (cg::reset-cgraph))
 
 (defun extract-emit-headless-test (&optional (verbose t))

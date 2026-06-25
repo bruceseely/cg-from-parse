@@ -53,8 +53,8 @@ PARSIFAL parse  --parse->ir-->  IR  --ir->cgraph-->  cgraph graph
   `ctree` traversal (pred + filled cases, recursing into clausal fillers, traces
   via their binding). The full pipeline runs end-to-end: parsing
   *"the man sees the dog ."* and extracting yields `[SEE]-(agnt)→[MAN] (obj)→[DOG].`
-  (MAN/DOG resolve to ontology types; SEE is auto-created under ACT). See
-  `test/extract-live-headless.lisp`.
+  — all three resolve to real cgraph ontology types under strict
+  `*on-missing-type*` :error. See `test/extract-live-headless.lisp`.
 
 Mapping/policy knobs: `*case-role->relation*` (AGT→agnt, NEUT→obj, DAT→rcpt),
 `*on-missing-type*` (`:error`/`:create`/`:top`), `*predicate-root*`.
