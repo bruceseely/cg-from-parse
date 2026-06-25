@@ -28,7 +28,8 @@
 ;;;   (:role ROLE-SYMBOL :gfunc GFUNC-SYMBOL :filler FILLER)
 ;;; A filler is one of:
 ;;;   (:kind :clause  ...)                       ; nested predicate (recurse)
-;;;   (:kind :entity  :lemma LEMMA :words (W..))  ; an NP, head-noun = LEMMA
+;;;   (:kind :entity  :node N :lemma LEMMA :words (W..) :mods (CLAUSE-IR..))
+;;;                                              ; an NP; :mods = relative clauses
 ;;;   (:kind :trace   :binding PA-NODE :words (W..)) ; a bound trace (coref)
 ;;;   (:kind :backref :lemma LEMMA)               ; structural cycle, not recursed
 ;;;   (:kind :empty)                              ; nil filler
@@ -98,10 +99,11 @@ surface word when the head can't be located."
 recursion path, used to break structural cycles (as ctree1 does)."
   (cond
     ((null filler) (list :kind :empty))
-    ;; A trace: a bound gap (control/raising). Carry the antecedent node so the
-    ;; emitter can share its concept (coreference), plus its head-noun lemma.
-    ((pa::is-any-of filler '(pa::trace pa::*))
-     (let ((b (pa::binding filler)))
+    ;; A bound gap: a trace (control/raising) OR an overt bound relative pronoun
+    ;; (who/that/which, the subject of a subject relative). Either corefers with
+    ;; its ultimate antecedent (gap -> who -> head noun); share that concept.
+    ((gap-antecedent filler)
+     (let ((b (gap-antecedent filler)))
        (list :kind :trace
              :binding b
              :lemma   (and b (binding-lemma b))
@@ -118,17 +120,54 @@ recursion path, used to break structural cycles (as ctree1 does)."
        (t
         (list :kind :entity :node filler
               :lemma (pa::getc 'pa::pred filler)
-              :words (pa::node-words filler)))))
+              :words (pa::node-words filler)
+              :mods  (clausal-mods filler seen)))))
     (t
      (list :kind :entity :node filler
            :lemma (entity-lemma filler)
-           :words (pa::node-words filler)))))
+           :words (pa::node-words filler)
+           :mods  (clausal-mods filler seen)))))
 
 (defun binding-lemma (node)
   "Head-noun lemma of a trace's antecedent NODE (its case-frame pred, else its
 head noun)."
   (or (ignore-errors (pa::getc 'pa::pred node))
       (entity-lemma node)))
+
+(defun node-binding (node)
+  "The antecedent stored in NODE's `binding' REGISTER, or NIL. (Use this, not
+the `binding' function, which only chases trace/* nodes and returns an overt
+relative pronoun like `who' unchanged -- whereas `who' carries its head NP in
+the register.)"
+  (and node (ignore-errors (pa::getr 'pa::binding node))))
+
+(defun ultimate-antecedent (node)
+  "Follow the binding-register chain (trace -> wh-comp -> head NP) to the final
+antecedent node, so coreference targets the real head, not an intermediate."
+  (let ((b (node-binding node)))
+    (if (and b (not (eq b node)))
+        (ultimate-antecedent b)
+        node)))
+
+(defun gap-antecedent (node)
+  "If NODE is a bound gap -- a trace, or a relative pronoun bound to an
+antecedent -- return its ultimate antecedent; otherwise NIL."
+  (when node
+    (let ((b (node-binding node)))
+      (when (and b (not (eq b node)))
+        (ultimate-antecedent node)))))
+
+(defun clausal-mods (node seen)
+  "Clause IRs for NODE's clausal modifiers -- i.e. relative clauses, which live
+in the head noun's case-frame `mods' (each mod's VP carries the relative
+predicate and a trace bound back to NODE). Non-clausal mods (adjectives, ...)
+are skipped for now."
+  (loop for mod in (pa::getc 'pa::mods node)
+        for clause = (and mod (clause-node-of mod))
+        when (and clause
+                  (pa::getc 'pa::pred clause)
+                  (pa::getc 'pa::cases clause))
+          collect (clause->ir clause (cons node seen))))
 
 (defun spec-tense (spec-node)
   "cgraph tense keyword (:past / :present / :future) from a PARSIFAL aux SPEC
@@ -266,7 +305,15 @@ concepts, e.g. an unbound trace)."
   (case (getf filler :kind)
     ;; A clausal complement is embedded as a proposition context concept.
     (:clause  (emit-clause-as-proposition filler))
-    (:entity  (concept-for-node (getf filler :node) (getf filler :lemma) required-type))
+    (:entity  (let ((concept (concept-for-node (getf filler :node)
+                                               (getf filler :lemma) required-type)))
+                ;; Relative clauses: assert each as a predicate in THIS context.
+                ;; The head's concept is already registered, so the relative gap
+                ;; (a trace bound back to the head) shares it -- one node, the
+                ;; matrix arc plus the relative clause's arc.
+                (dolist (mod (getf filler :mods))
+                  (emit-clause mod))
+                concept))
     (:trace   (emit-trace filler required-type))
     ;; Backref (structural cycle): reuse the concept already emitted for the node.
     (:backref (and (getf filler :node) (gethash (getf filler :node) *node->concept*)))

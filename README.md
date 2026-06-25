@@ -78,6 +78,12 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   occurrences sharing a coreference label (`?x1`). Knobs:
   `*clausal-complement-type*` (default `proposition`).
 
+- **Relative clauses: working (subject relatives).** *"the boy who sees the dog
+  sees the woman ."* → `[SEE]-(agnt)→[BOY]←(agnt)←[SEE]→(obj)→[DOG] (obj)→[WOMAN].`
+  The relative clause (from the head noun's case-frame `mods`) is asserted in the
+  same context, and its gap (trace or bound relative pronoun) shares the head's
+  concept — BOY is one node, agent of both seeings. See
+  `test/extract-relative-headless.lisp`.
 - **Ditransitives: working.** Double-object *"the man gives the woman the dog ."*
   fills AGT/DAT/NEUT → `[GIVE]-(agnt)→[MAN] (obj)→[DOG] (rcpt)→[WOMAN].` See
   `test/extract-ditransitive-headless.lisp`.

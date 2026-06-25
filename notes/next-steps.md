@@ -29,11 +29,19 @@ recipient/theme because PARSIFAL's book/ball aren't in test-types.
 Still open: prepositional dative ("gives the dog to the woman") needs the PP
 rules + a `to`-PP → rcpt mapping.
 
-## 4. Relative clauses
-e.g. "the dog that the man sees" — a trace (object/subject gap) bound to the head
-noun. Extraction entry point is an NP, not a clause, so `extract-graph` /
-`clause-node-of` need an NP-rooted path. The gap coref is same-context (shared
-node) in most cases. Grammar: `*relative-clause-rules*` etc.
+## 4. Relative clauses  — DONE (subject relatives in a sentence)
+"the boy who sees the dog sees the woman ." ->
+`[SEE]-(agnt)→[BOY]←(agnt)←[SEE]→(obj)→[DOG] (obj)→[WOMAN].` -- BOY is one shared
+node (matrix agent + relative agent). The relative clause lives in the head
+noun's case-frame `mods`; `clausal-mods` reads it, `emit-clause` asserts it in the
+same context, and the gap (a trace OR a bound relative pronoun like `who`) shares
+the head's concept. Key fix: follow the binding REGISTER (`getr 'binding`) not the
+`binding' function (which leaves an overt `who' unchanged); see `node-binding` /
+`gap-antecedent`. See test/extract-relative-headless.lisp.
+Still open: object relatives inside a full declarative ("...the dog that the man
+sees") didn't parse with this grammar union (only as an NP utterance); and the
+NP-utterance entry point ("the boy who you met .") isn't wired (extract-graph
+expects a clause). Reduced relatives ("the boy you met") untested.
 
 ## 5. Modifiers (`getc 'mods`)
 Adjective/adverb/PP modifiers (ctree's `MOD:` lines). The reader ignores them
