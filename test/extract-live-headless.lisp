@@ -10,10 +10,9 @@
 ;;;     --load test/extract-live-headless.lisp
 ;;;
 ;;; "the man sees the dog ." -> SEE with agt=MAN (subj), neut=DOG (obj).
-;;; man/dog are in test-types; `see' is not (test-types is a controlled catalog,
-;;; not the user's full ontology), so this runs with *on-missing-type* :create:
-;;; man/dog resolve, SEE is created under ACT -- the realistic out-of-ontology
-;;; case, exercising the whole reader + emitter against a live parse.
+;;; see/man/dog are all in test-types (see=act, man/dog under animate), so this
+;;; runs under the default strict *on-missing-type* :error -- exercising full
+;;; real-ontology resolution of the whole reader + emitter against a live parse.
 
 (in-package :cg-from-parse)
 
@@ -38,8 +37,7 @@
        (format t "~&extract-live-headless-test: parse FAILED for ~s <<<~%" sentence)
        nil)
       (t
-       (let* ((*on-missing-type* :create)   ; man/dog in test-types; SEE created under ACT
-              (ir    (parse->ir pa::c))
+       (let* ((ir    (parse->ir pa::c))   ; default :error -- see/man/dog all resolve
               (graph (ir->cgraph ir))
               (text  (ignore-errors (cg::format-cgraph graph)))
               (up    (and (stringp text) (string-upcase text)))
