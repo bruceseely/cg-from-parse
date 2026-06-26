@@ -112,7 +112,25 @@ the parse left in `pa::c` by `parse-sentence`.
 
 ## Tests
 
+Two layers:
+
+**Unit suite** — runtime-free, safe in any loaded image:
+
 ```lisp
 (asdf:test-system :cg-from-parse)   ; or
 (cg-from-parse::test-all t)
 ```
+
+**Headless integration tests** (`test/extract-*-headless.lisp`) — each brings up
+the test-types catalog + a PARSIFAL grammar, parses a sentence, and checks the
+extracted graph. They reset cgraph state, so run them in a *fresh* image, not
+your working session. Run all of them with one command (prints a rollup, exits
+non-zero on failure):
+
+```sh
+sbcl --non-interactive --disable-debugger \
+  --eval '(ql:quickload :swank)' --eval '(ql:quickload :cg-from-parse)' \
+  --load test/run-headless.lisp
+```
+
+(or `--load` any single `test/extract-*-headless.lisp`.)

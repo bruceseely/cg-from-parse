@@ -1,0 +1,51 @@
+;;; -*- Mode: LISP; Syntax: Common-lisp; Base: 10; Lowercase: Yes -*-
+;;;
+;;; Run ALL headless integration tests from a single --load.
+;;;
+;;; Each extract-*-headless.lisp is self-contained: on load it brings up the
+;;; test-types catalog (setup-test-cgraph), loads + registers the PARSIFAL
+;;; grammar it needs, parses its sentence, and runs its check (printing a
+;;; pass/FAIL line). Order among them doesn't matter -- each resets its own
+;;; rule table and catalog. This driver just loads them in turn, then prints a
+;;; rollup.
+;;;
+;;;   sbcl --non-interactive --disable-debugger \
+;;;     --eval '(ql:quickload :swank)' --eval '(ql:quickload :cg-from-parse)' \
+;;;     --load test/run-headless.lisp
+;;;
+;;; NB: these are NOT part of (asdf:test-system :cg-from-parse) -- they need a
+;;; controlled catalog + a live PARSIFAL grammar and they reset cgraph state,
+;;; unlike the runtime-free `extract-test' in the asdf suite. Run them in a
+;;; fresh image (as above), not in your working session.
+
+(in-package :cg-from-parse)
+
+(defparameter *headless-tests*
+  '(("emit"         . extract-emit-headless-test)
+    ("live"         . extract-live-headless-test)
+    ("coref"        . extract-coref-headless-test)
+    ("ditransitive" . extract-ditransitive-headless-test)
+    ("relative"     . extract-relative-headless-test)
+    ("modifier"     . extract-modifier-headless-test))
+  "(label . test-function) for each extract-<label>-headless.lisp script.")
+
+(let ((here (or *load-truename* *compile-file-truename*))
+      (results '()))
+  (dolist (spec *headless-tests*)
+    (let ((file (merge-pathnames (format nil "extract-~a-headless.lisp" (car spec))
+                                 here)))
+      ;; Loading the script sets up this test's catalog + grammar and runs it
+      ;; once (printing its line). Its grammar is still current immediately
+      ;; after, so re-run it quietly to capture pass/fail for the rollup.
+      (load file)
+      (push (cons (car spec)
+                  (let ((*standard-output* (make-broadcast-stream)))
+                    (ignore-errors (funcall (cdr spec)))))
+            results)))
+  (setf results (nreverse results))
+  (format t "~2&==== headless summary ====~%")
+  (dolist (r results)
+    (format t "  ~:[FAIL <<<~;pass~]  ~a~%" (cdr r) (car r)))
+  (let ((passed (count-if #'cdr results)) (total (length results)))
+    (format t "  ~d/~d passed~%" passed total)
+    (unless (= passed total) (sb-ext:exit :code 1))))
