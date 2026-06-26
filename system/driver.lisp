@@ -7,13 +7,32 @@
 ;;; caller can go straight from English to a cgraph graph. The grammar is
 ;;; loaded/registered once per session and cached.
 ;;;
-;;; Requires a running cgraph (a type catalog + *context*, as in any normal
-;;; session); it does NOT set those up -- use the headless test-setup for that.
+;;; It self-initializes both cgraph (the type catalog + *context*) and the
+;;; PARSIFAL grammar on first use, each a no-op if already set up -- so it works
+;;; right after (ql:quickload :cg-from-parse) without disturbing a running session.
 
 (in-package :cg-from-parse)
 
 (defvar *grammar-loaded* nil
   "T once PARSIFAL's full grammar has been loaded + registered this session.")
+
+(defun cgraph-ready-p ()
+  "True when cgraph is initialized: the type catalog is loaded (top type bound)
+and a *context* exists."
+  (and (boundp 'cg::*concept-type-top*)
+       cg::*concept-type-top*
+       cg::*context*))
+
+(defun ensure-cgraph ()
+  "Make sure cgraph is initialized -- type catalog loaded from the user's
+~/.cgraph/types and *context* bound. No-op if already initialized, so a running
+session isn't disturbed. (*package* must be :cg while loading: cgraph's type
+loaders use plain READ.)"
+  (unless (cgraph-ready-p)
+    (let ((*package* (find-package :conceptual-graphs)))
+      (cg::setup-cgraph (asdf:system-source-directory :cgraph))
+      (cg::reset-cgraph)))
+  t)
 
 (defun ensure-grammar (&optional force)
   "Load and register PARSIFAL's full grammar so parse-sentence can handle any
@@ -35,6 +54,7 @@ lemmas (:error / :create / :top).
 
   (parse-and-extract \"the man gives the woman the book .\")
   (parse-and-extract \"the man sees the dog in the park .\" :on-missing :create)"
+  (ensure-cgraph)
   (ensure-grammar)
   (let ((*on-missing-type* on-missing))
     (if (pa:parse-sentence sentence :initial-rule (intern "INITIAL-RULE" :parsifal))

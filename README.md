@@ -43,8 +43,11 @@ One call, English to conceptual graph (with a running cgraph in your session):
 ;; => "[PERSUADE]-(agnt)→[BOY] (prop)→[PROPOSITION:[GO]→(agnt)→[GIRL:?x1]] (rcpt)→[GIRL:?x1]."
 ```
 
-`parse-and-extract` loads + registers PARSIFAL's full grammar on first use
-(cached), parses, and extracts — no per-construction rule-group selection. The
+`parse-and-extract` self-initializes on first use — it brings up cgraph (loads
+your `~/.cgraph/types` catalog + a `*context*`) and loads + registers PARSIFAL's
+full grammar, each a no-op if already set up — then parses and extracts, with no
+per-construction rule-group selection. So it works right after
+`(ql:quickload :cg-from-parse)` and won't disturb a running session. The
 `:on-missing` keyword binds `*on-missing-type*` (`:error` default / `:create` /
 `:top`) for out-of-ontology words.
 

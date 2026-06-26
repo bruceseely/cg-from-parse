@@ -22,7 +22,8 @@
     than via :use, to keep the package boundary explicit and avoid the
     symbol conflicts that :use-ing two large export sets would create.")
   (:export #:extract-graph
-           #:parse-and-extract #:sentence->cg-text #:ensure-grammar))
+           #:parse-and-extract #:sentence->cg-text
+           #:ensure-grammar #:ensure-cgraph))
 
 (in-package :asdf-user)
 
