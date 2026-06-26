@@ -134,3 +134,12 @@ sbcl --non-interactive --disable-debugger \
 ```
 
 (or `--load` any single `test/extract-*-headless.lisp`.)
+
+To run them from a **live SLIME session** safely — without `exit` and restoring
+your catalog + context afterward — load the runner once and call the interactive
+entry point:
+
+```lisp
+(load (asdf:system-relative-pathname :cg-from-parse "test/headless-runner.lisp"))
+(cg-from-parse::run-headless-interactive)
+```
