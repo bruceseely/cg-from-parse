@@ -119,6 +119,13 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   loc→loc, manr→manr. Each is `[PRED]→(rel)→[filler]` so only act-source relations
   belong. Note: PP *adjuncts* (locatives/instruments) are surface-only (not in the
   case frame), so loc/manr need a verb that licenses them — see `notes/next-steps.md`.
+- **Passive voice: extracted.** PARSIFAL normalizes a passive's roles (the
+  logical object fills NEUT, agent only if a by-phrase is present), so roles need
+  no new code; the passive participle is marked `concept-voice :passive`. (No
+  copular *was*/agentive *by* in PARSIFAL's dictionary, so the available passive
+  is the agentless participle, e.g. *"a meeting seems to have been scheduled ."*
+  → embedded SCHEDULE is `:passive`. Voice isn't shown in linear form; it lives
+  on the concept slot.) See `test/extract-passive-headless.lisp`.
 - **Tense/aspect: extracted onto the predicate concept.** The PARSIFAL aux SPEC
   features map to cgraph `concept-tense` (:past/:present/:future) and
   `concept-aspect` (:perfect). "the man sees the dog" → SEE is `:present`; "the

@@ -96,10 +96,16 @@ manually-set defining `*x` gets wiped; both coref occurrences render `?x1`
 If a proper `*x` defining marker is wanted in the text, it needs formatter
 cooperation (cgraph side).
 
-## 9. Other sentence types
-`extract-graph` assumes a declarative clause with a VP. Extend to wh-/yes-no
-questions, imperatives, passives, raising (all have integration tests in
-parsifal). Negation, quantifiers, numbers, dates → cgraph referents/quantifiers.
+## 9. Other sentence types  — PARTIAL (passives done)
+PASSIVES: PARSIFAL normalizes roles (logical object → NEUT, agent only via a
+by-phrase), so roles need no new code; voice is read from the verb's `passive'
+feature → `concept-voice :passive' (clause-verb-node / clause-voice). NB:
+PARSIFAL's dict has no copular `was'/agentive `by', so only the agentless
+participle is available (e.g. "a meeting seems to have been scheduled ." →
+embedded SCHEDULE :passive). See test/extract-passive-headless.lisp.
+Still open: wh-/yes-no questions, imperatives (implicit "you"), raising,
+negation, quantifiers, numbers, dates → cgraph referents/quantifiers.
+`extract-graph` still assumes a declarative-style clause with a VP.
 
 ## 10. Ergonomic driver  — DONE
 `cg-from-parse:parse-and-extract` (system/driver.lisp): string → cgraph graph.

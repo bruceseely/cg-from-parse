@@ -23,7 +23,8 @@
 ;;;
 ;;; A clause / predicate:
 ;;;   (:kind :clause :pred LEMMA :spec SPEC-NODE-OR-NIL :node PA-NODE
-;;;    :tense :past/:present/:future/NIL :aspect :perfect/NIL :cases (CASE ...))
+;;;    :tense :past/:present/:future/NIL :aspect :perfect/NIL
+;;;    :voice :passive/NIL :cases (CASE ...))
 ;;; A case (one filled thematic role):
 ;;;   (:role ROLE-SYMBOL :gfunc GFUNC-SYMBOL :filler FILLER)
 ;;; A filler is one of:
@@ -210,6 +211,23 @@ node's features, or NIL (e.g. a tenseless infinitive)."
   (when (and spec-node (member 'pa::perf (pa::fe spec-node)))
     :perfect))
 
+(defun clause-verb-node (node)
+  "The verb leaf for a clause / VP / comp-np NODE (descends VP, then S, then a
+comp-np's embedded S), or NIL."
+  (cond ((null node) nil)
+        ((ignore-errors (pa::daughter 'pa::verb node)))
+        ((ignore-errors (pa::daughter 'pa::vp node))
+         (clause-verb-node (pa::daughter 'pa::vp node)))
+        ((ignore-errors (pa::daughter 'pa::s node))
+         (clause-verb-node (pa::daughter 'pa::s node)))
+        (t nil)))
+
+(defun clause-voice (node)
+  "cgraph voice keyword for clause NODE: :passive when its verb is a passive
+participle, else NIL (active is the cgraph default)."
+  (let ((verb (clause-verb-node node)))
+    (when (and verb (member 'pa::passive (pa::fe verb))) :passive)))
+
 (defun clause->ir (node seen)
   "Convert a predicate-bearing NODE into a clause IR."
   (let ((spec (cadr (pa::getc 'pa::spec node))))
@@ -218,6 +236,7 @@ node's features, or NIL (e.g. a tenseless infinitive)."
           :spec   spec
           :tense  (spec-tense spec)
           :aspect (spec-aspect spec)
+          :voice  (clause-voice node)
           :node   node
           :cases  (loop for (cname filler gfunc) in (reverse (pa::getc 'pa::cases node))
                         collect (list :role cname :gfunc gfunc
@@ -284,9 +303,10 @@ relation instead of the case's entity-typed relation."
   (let ((pred-concept (concept-for-node (getf ir :node) (getf ir :pred) *predicate-root*)))
     ;; Carry tense/aspect onto the predicate concept (not shown by the linear
     ;; formatter, but stored for the realizer / queries).
-    (let ((tense (getf ir :tense)) (aspect (getf ir :aspect)))
+    (let ((tense (getf ir :tense)) (aspect (getf ir :aspect)) (voice (getf ir :voice)))
       (when tense  (setf (cg::concept-tense pred-concept) tense))
-      (when aspect (setf (cg::concept-aspect pred-concept) aspect)))
+      (when aspect (setf (cg::concept-aspect pred-concept) aspect))
+      (when voice  (setf (cg::concept-voice pred-concept) voice)))
     (dolist (case (getf ir :cases))
       (let* ((role      (getf case :role))
              (filler    (getf case :filler))
