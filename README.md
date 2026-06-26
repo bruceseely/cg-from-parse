@@ -30,6 +30,24 @@ sibling repo under `~/repo/`, this system is quickloadable directly:
 
 If ASDF doesn't see it yet, force a rescan with `(asdf:clear-source-registry)`.
 
+## Usage
+
+One call, English to conceptual graph (with a running cgraph in your session):
+
+```lisp
+(cg-from-parse:parse-and-extract "the man gives the woman the book .")
+;; => #<GRAPH [GIVE]-(agnt)→[MAN] (obj)→[BOOK] (rcpt)→[WOMAN].>
+
+(cg-from-parse:sentence->cg-text "the boy persuaded the girl to go ."
+                                 :on-missing :create)
+;; => "[PERSUADE]-(agnt)→[BOY] (prop)→[PROPOSITION:[GO]→(agnt)→[GIRL:?x1]] (rcpt)→[GIRL:?x1]."
+```
+
+`parse-and-extract` loads + registers PARSIFAL's full grammar on first use
+(cached), parses, and extracts — no per-construction rule-group selection. The
+`:on-missing` keyword binds `*on-missing-type*` (`:error` default / `:create` /
+`:top`) for out-of-ontology words.
+
 ## Package boundary
 
 The `:cg-from-parse` package (nickname `:cfp`) uses only `:cl`. Parser and CG

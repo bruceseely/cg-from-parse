@@ -101,10 +101,13 @@ cooperation (cgraph side).
 questions, imperatives, passives, raising (all have integration tests in
 parsifal). Negation, quantifiers, numbers, dates → cgraph referents/quantifiers.
 
-## 10. Ergonomic driver
-A one-call helper: string → (set up grammar) → parse-sentence → extract-graph,
-so callers don't hand-register grammar groups. Possibly per-construction grammar
-presets.
+## 10. Ergonomic driver  — DONE
+`cg-from-parse:parse-and-extract` (system/driver.lisp): string → cgraph graph.
+`ensure-grammar` loads parsifal's clause-grammar.lisp + `load-full-grammar` once
+(cached in *grammar-loaded*); one loaded grammar parses every supported
+construction (verified across transitive/ditransitive/control/relative/adjective).
+`:on-missing` keyword binds *on-missing-type*. Also `sentence->cg-text`. Exported
+from the package. See test/extract-driver-headless.lisp.
 
 ## Cross-cutting notes
 - Tests load the controlled **test-types** catalog non-destructively via

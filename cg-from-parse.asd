@@ -21,7 +21,8 @@
     products. Foreign symbols are referenced qualified (cg:… / pa:…) rather
     than via :use, to keep the package boundary explicit and avoid the
     symbol conflicts that :use-ing two large export sets would create.")
-  (:export #:extract-graph))
+  (:export #:extract-graph
+           #:parse-and-extract #:sentence->cg-text #:ensure-grammar))
 
 (in-package :asdf-user)
 
@@ -37,7 +38,8 @@
   :perform (test-op (o c) (uiop:symbol-call :cg-from-parse '#:test-all t))
   :components ((:module "system"
                 :serial t
-                :components ((:file "extract")))
+                :components ((:file "extract")
+                             (:file "driver")))
                (:module "test"
                 :serial t
                 :depends-on ("system")

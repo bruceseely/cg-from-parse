@@ -25,7 +25,8 @@
     ("coref"        . extract-coref-headless-test)
     ("ditransitive" . extract-ditransitive-headless-test)
     ("relative"     . extract-relative-headless-test)
-    ("modifier"     . extract-modifier-headless-test))
+    ("modifier"     . extract-modifier-headless-test)
+    ("driver"       . extract-driver-headless-test))
   "(label . test-function) for each extract-<label>-headless.lisp script.")
 
 (defun run-headless-tests (&key restore)
