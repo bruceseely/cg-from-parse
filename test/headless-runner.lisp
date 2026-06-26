@@ -28,6 +28,7 @@
     ("modifier"     . extract-modifier-headless-test)
     ("passive"      . extract-passive-headless-test)
     ("determiner"   . extract-determiner-headless-test)
+    ("quantifier"   . extract-quantifier-headless-test)
     ("driver"       . extract-driver-headless-test))
   "(label . test-function) for each extract-<label>-headless.lisp script.")
 

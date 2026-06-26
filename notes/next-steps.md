@@ -111,8 +111,16 @@ DETERMINERS/DEFINITENESS — DONE (definite/indefinite): an NP's DEF/INDEF featu
 referent via definite-concept ([X: #], an individual with id t), indefinite stays
 bare. "the man gives the woman a book ." → [MAN: #]/[WOMAN: #], [BOOK]. See
 test/extract-determiner-headless.lisp. NB: the space in "[X: #]" depends on
-*concise*. Still open here: quantifiers ("every" → [X: ∀]), numbers/plurals
-(sets/counts), named individuals ("Bob" → [MAN: Bob]).
+*concise*. 
+
+QUANTIFIERS — DONE (universal/existential): the NP's leading surface word
+(np-quantifier) → entity IR :quantifier; emission sets concept-quantifier
+(all/every/each/any → :universal, some → :existential). Like tense/voice it's a
+stored slot, NOT rendered in linear form (checked via IR + slot, see
+test/extract-quantifier-headless.lisp). NB: PARSIFAL's loaded lexicon has
+all/some/any but NOT every/each; quant register on the node was empty, so detect
+from node-words. Still open: numbers/plurals (sets/counts), named individuals
+("Bob" → [MAN: Bob]).
 
 ## 10. Ergonomic driver  — DONE
 `cg-from-parse:parse-and-extract` (system/driver.lisp): string → cgraph graph.

@@ -30,8 +30,9 @@
 ;;; A filler is one of:
 ;;;   (:kind :clause  ...)                       ; nested predicate (recurse)
 ;;;   (:kind :entity  :node N :lemma LEMMA :words (W..)
-;;;                   :determiner :definite/:indefinite/NIL :adjs (ADJ..)
-;;;                   :mods (CLAUSE-IR..))       ; an NP; definite -> [X: #],
+;;;                   :determiner :definite/:indefinite/NIL
+;;;                   :quantifier :universal/:existential/NIL :adjs (ADJ..)
+;;;                   :mods (CLAUSE-IR..))       ; an NP; definite -> [X: #];
 ;;;                                              ; :adjs = adjectives, :mods = rel clauses
 ;;;   (:kind :trace   :binding PA-NODE :words (W..)) ; a bound trace (coref)
 ;;;   (:kind :backref :lemma LEMMA)               ; structural cycle, not recursed
@@ -139,6 +140,7 @@ recursion path, used to break structural cycles (as ctree1 does)."
               :lemma (pa::getc 'pa::pred filler)
               :words (pa::node-words filler)
               :determiner (np-determiner filler)
+              :quantifier (np-quantifier filler)
               :adjs  (adjective-lemmas filler)
               :mods  (clausal-mods filler seen)))))
     (t
@@ -146,15 +148,26 @@ recursion path, used to break structural cycles (as ctree1 does)."
            :lemma (entity-lemma filler)
            :words (pa::node-words filler)
            :determiner (np-determiner filler)
+           :quantifier (np-quantifier filler)
            :adjs  (adjective-lemmas filler)
            :mods  (clausal-mods filler seen)))))
 
 (defun np-determiner (node)
   "Definiteness of an NP NODE from its features: :definite (the) / :indefinite
-(a/an) / NIL (no determiner, e.g. a bare/mass NP)."
+(a/an) / NIL (no determiner, e.g. a bare/mass/quantified NP)."
   (let ((fe (ignore-errors (pa::fe node))))
     (cond ((member 'pa::def   fe) :definite)
           ((member 'pa::indef fe) :indefinite)
+          (t nil))))
+
+(defun np-quantifier (node)
+  "Quantifier of an NP NODE -- :universal (all/every/each/any) / :existential
+(some) / NIL -- from its leading surface word. (Matched by name, since the word
+may be a :parsifal or :cl symbol; e.g. \"some\" reads as CL:SOME.)"
+  (let* ((words (ignore-errors (pa::node-words node)))
+         (w     (and words (string-upcase (string (first words))))))
+    (cond ((member w '("ALL" "EVERY" "EACH" "ANY") :test #'string=) :universal)
+          ((member w '("SOME")                     :test #'string=) :existential)
           (t nil))))
 
 (defun adjective-lemmas (np-node)
@@ -373,6 +386,10 @@ concepts, e.g. an unbound trace)."
     (:entity  (let ((concept (concept-for-node (getf filler :node)
                                                (getf filler :lemma) required-type
                                                (eq (getf filler :determiner) :definite))))
+                ;; Quantifier (all/some...): stored on the concept, like
+                ;; tense/voice -- not shown in linear form, used by the realizer.
+                (let ((q (getf filler :quantifier)))
+                  (when q (setf (cg::concept-quantifier concept) q)))
                 ;; Adjective modifiers: [NOUN]->(attr)->[ADJ].
                 (dolist (adj (getf filler :adjs))
                   (emit-modifier concept *adjective-relation* adj))

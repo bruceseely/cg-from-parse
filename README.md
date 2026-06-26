@@ -119,6 +119,11 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   loc→loc, manr→manr. Each is `[PRED]→(rel)→[filler]` so only act-source relations
   belong. Note: PP *adjuncts* (locatives/instruments) are surface-only (not in the
   case frame), so loc/manr need a verb that licenses them — see `notes/next-steps.md`.
+- **Quantifiers: extracted onto the concept.** A leading quantifier maps to
+  `concept-quantifier`: all/every/each/any → `:universal`, some → `:existential`.
+  Like tense/voice it's a stored slot, not shown in linear form. (PARSIFAL's
+  loaded lexicon has all/some/any but not every/each.) See
+  `test/extract-quantifier-headless.lisp`.
 - **Definiteness: extracted onto the referent.** A definite NP ("the") gets the
   `#` referent (`[X: #]`); an indefinite NP ("a/an") stays bare (`[X]`).
   *"the man gives the woman a book ."* →
