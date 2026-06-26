@@ -103,9 +103,16 @@ feature → `concept-voice :passive' (clause-verb-node / clause-voice). NB:
 PARSIFAL's dict has no copular `was'/agentive `by', so only the agentless
 participle is available (e.g. "a meeting seems to have been scheduled ." →
 embedded SCHEDULE :passive). See test/extract-passive-headless.lisp.
-Still open: wh-/yes-no questions, imperatives (implicit "you"), raising,
-negation, quantifiers, numbers, dates → cgraph referents/quantifiers.
+Still open: wh-/yes-no questions, imperatives (implicit "you"), raising.
 `extract-graph` still assumes a declarative-style clause with a VP.
+
+DETERMINERS/DEFINITENESS — DONE (definite/indefinite): an NP's DEF/INDEF feature
+(np-determiner) → entity IR :determiner; emission gives a definite NP the `#'
+referent via definite-concept ([X: #], an individual with id t), indefinite stays
+bare. "the man gives the woman a book ." → [MAN: #]/[WOMAN: #], [BOOK]. See
+test/extract-determiner-headless.lisp. NB: the space in "[X: #]" depends on
+*concise*. Still open here: quantifiers ("every" → [X: ∀]), numbers/plurals
+(sets/counts), named individuals ("Bob" → [MAN: Bob]).
 
 ## 10. Ergonomic driver  — DONE
 `cg-from-parse:parse-and-extract` (system/driver.lisp): string → cgraph graph.

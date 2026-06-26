@@ -119,6 +119,12 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   loc→loc, manr→manr. Each is `[PRED]→(rel)→[filler]` so only act-source relations
   belong. Note: PP *adjuncts* (locatives/instruments) are surface-only (not in the
   case frame), so loc/manr need a verb that licenses them — see `notes/next-steps.md`.
+- **Definiteness: extracted onto the referent.** A definite NP ("the") gets the
+  `#` referent (`[X: #]`); an indefinite NP ("a/an") stays bare (`[X]`).
+  *"the man gives the woman a book ."* →
+  `[GIVE]-(agnt)→[MAN: #] (obj)→[BOOK] (rcpt)→[WOMAN: #].` Read from the NP's
+  `DEF`/`INDEF` feature. See `test/extract-determiner-headless.lisp`. (Quantifiers
+  like "every", numbers/plurals, and named individuals are future work.)
 - **Passive voice: extracted.** PARSIFAL normalizes a passive's roles (the
   logical object fills NEUT, agent only if a by-phrase is present), so roles need
   no new code; the passive participle is marked `concept-voice :passive`. (No

@@ -29,9 +29,10 @@
 ;;;   (:role ROLE-SYMBOL :gfunc GFUNC-SYMBOL :filler FILLER)
 ;;; A filler is one of:
 ;;;   (:kind :clause  ...)                       ; nested predicate (recurse)
-;;;   (:kind :entity  :node N :lemma LEMMA :words (W..) :adjs (ADJ..)
-;;;                   :mods (CLAUSE-IR..))       ; an NP; :adjs = adjectives,
-;;;                                              ; :mods = relative clauses
+;;;   (:kind :entity  :node N :lemma LEMMA :words (W..)
+;;;                   :determiner :definite/:indefinite/NIL :adjs (ADJ..)
+;;;                   :mods (CLAUSE-IR..))       ; an NP; definite -> [X: #],
+;;;                                              ; :adjs = adjectives, :mods = rel clauses
 ;;;   (:kind :trace   :binding PA-NODE :words (W..)) ; a bound trace (coref)
 ;;;   (:kind :backref :lemma LEMMA)               ; structural cycle, not recursed
 ;;;   (:kind :empty)                              ; nil filler
@@ -137,14 +138,24 @@ recursion path, used to break structural cycles (as ctree1 does)."
         (list :kind :entity :node filler
               :lemma (pa::getc 'pa::pred filler)
               :words (pa::node-words filler)
+              :determiner (np-determiner filler)
               :adjs  (adjective-lemmas filler)
               :mods  (clausal-mods filler seen)))))
     (t
      (list :kind :entity :node filler
            :lemma (entity-lemma filler)
            :words (pa::node-words filler)
+           :determiner (np-determiner filler)
            :adjs  (adjective-lemmas filler)
            :mods  (clausal-mods filler seen)))))
+
+(defun np-determiner (node)
+  "Definiteness of an NP NODE from its features: :definite (the) / :indefinite
+(a/an) / NIL (no determiner, e.g. a bare/mass NP)."
+  (let ((fe (ignore-errors (pa::fe node))))
+    (cond ((member 'pa::def   fe) :definite)
+          ((member 'pa::indef fe) :indefinite)
+          (t nil))))
 
 (defun adjective-lemmas (np-node)
   "Adjective words attached to NP-NODE as surface `adj' daughters (e.g. BIG in
@@ -253,25 +264,34 @@ participle, else NIL (active is the cgraph default)."
 ;;; Emission layer:  IR  ->  cgraph
 ;;; ===========================================================================
 
-(defun concept-for (lemma required-type)
-  "A cgraph concept whose type is named LEMMA. REQUIRED-TYPE is the
-concept-type the surrounding relation demands (used only under
-*on-missing-type* :create to place a newly-created type so arcs type-check)."
+(defun definite-concept (ctype)
+  "A concept of CTYPE carrying the definite referent -- renders [X: #]."
+  (cg::make-concept ctype (cg::make-referent (cg::make-individual ctype nil :id t))))
+
+(defun concept-of (ctype definite)
+  "A concept of CTYPE: definite ([X: #]) when DEFINITE, else bare ([X])."
+  (if definite (definite-concept ctype) (cg::make-concept ctype nil)))
+
+(defun concept-for (lemma required-type &optional definite)
+  "A cgraph concept whose type is named LEMMA. REQUIRED-TYPE is the concept-type
+the surrounding relation demands (used only under *on-missing-type* :create to
+place a newly-created type so arcs type-check). DEFINITE marks a definite NP
+(\"the X\" -> [X: #]); otherwise the concept is bare."
   ;; The parser emits lemmas as :parsifal symbols (e.g. pa::eat) while cgraph
   ;; types live in :cg; normalize by name so the lookup crosses packages.
   (let* ((name  (intern (string-upcase (string lemma)) :cg))
          (ctype (ignore-errors (cg::get-concept-type name))))
     (cond
-      (ctype (cg::make-concept ctype nil))
+      (ctype (concept-of ctype definite))
       ((eq *on-missing-type* :create)
        ;; NB: make-concept-type must get a SYMBOL here -- the STRING method
        ;; (types.lisp) forces the supertype to WORD and ignores supertypes-list;
        ;; the symbol method honors it.
        (cg::make-concept-type name
                               :supertypes-list (list (type-label required-type)))
-       (cg::make-concept (cg::get-concept-type name) nil))
+       (concept-of (cg::get-concept-type name) definite))
       ((eq *on-missing-type* :top)
-       (cg::make-concept cg::*concept-type-top* nil))
+       (concept-of cg::*concept-type-top* definite))
       (t
        (error "cg-from-parse: no concept type for lemma ~a ~
                (and *on-missing-type* is ~s)" lemma *on-missing-type*)))))
@@ -285,13 +305,13 @@ concept-type object or a symbol."
 (defvar *node->corefvar*)   ; PARSIFAL node -> coreference label (for cross-context coref)
 (defvar *corefvar-counter*) ; allocates fresh coreference labels
 
-(defun concept-for-node (node lemma required-type)
+(defun concept-for-node (node lemma required-type &optional definite)
   "Concept for PARSIFAL NODE, reusing the one already emitted for it if present
 -- this is how coreference is realized: a trace and its antecedent map to the
 SAME node, hence the same concept (one node, several arcs). Otherwise create a
-concept of type LEMMA, register it under NODE, and return it."
+concept of type LEMMA (DEFINITE -> [X: #]), register it under NODE, and return it."
   (or (and node (gethash node *node->concept*))
-      (let ((concept (concept-for lemma required-type)))
+      (let ((concept (concept-for lemma required-type definite)))
         (when node (setf (gethash node *node->concept*) concept))
         concept)))
 
@@ -351,7 +371,8 @@ concepts, e.g. an unbound trace)."
     ;; A clausal complement is embedded as a proposition context concept.
     (:clause  (emit-clause-as-proposition filler))
     (:entity  (let ((concept (concept-for-node (getf filler :node)
-                                               (getf filler :lemma) required-type)))
+                                               (getf filler :lemma) required-type
+                                               (eq (getf filler :determiner) :definite))))
                 ;; Adjective modifiers: [NOUN]->(attr)->[ADJ].
                 (dolist (adj (getf filler :adjs))
                   (emit-modifier concept *adjective-relation* adj))
