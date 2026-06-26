@@ -29,7 +29,11 @@
   :description "Extract conceptual graphs from PARSIFAL parse products"
   :version "0.0.1"
   :author "Bruce Seely <bruce@bseely.com>"
-  :depends-on (:parsifal :cgraph)
+  ;; :swank must load before :cgraph -- cgraph references swank::eval-in-emacs
+  ;; literally at load time, so without swank present its load aborts (and then
+  ;; cg-from-parse's own files fail with "cgraph package unknown"). In a SLIME
+  ;; image swank is already there; declaring it makes a plain load self-sufficient.
+  :depends-on (:swank :parsifal :cgraph)
   :perform (test-op (o c) (uiop:symbol-call :cg-from-parse '#:test-all t))
   :components ((:module "system"
                 :serial t
