@@ -119,6 +119,12 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   `[PERSON: You]`. *"see the dog ."* → `[SEE]-(agnt)→[PERSON: You] (obj)→[DOG: #].`
   (Personal pronouns generally map to indexical individuals; anaphora resolution
   is future work.) See `test/extract-imperative-headless.lisp`.
+- **Yes-no questions: working.** A yes-no question has the same propositional
+  content as the declarative — it asks whether that proposition holds — so it
+  extracts to the identical graph (semantically, that proposition used as a
+  boolean/existence query). *"does the dog see the man ?"* ≡ *"the dog sees the
+  man ."* → `[SEE]-(agnt)→[DOG: #] (obj)→[MAN: #].` See
+  `test/extract-yesno-headless.lisp`.
 - **wh-questions: extracted as queries.** A wh-interrogative (in-place subject
   "who", or a fronted "what" leaving a trace) is the queried element — a concept
   of the wh-type (who→person, what→entity, …) carrying a query variable (`*x`),

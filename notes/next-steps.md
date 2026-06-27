@@ -96,7 +96,14 @@ manually-set defining `*x` gets wiped; both coref occurrences render `?x1`
 If a proper `*x` defining marker is wanted in the text, it needs formatter
 cooperation (cgraph side).
 
-## 9. Other sentence types  — PARTIAL (passives, wh-questions, imperatives, raising done)
+## 9. Other sentence types  — passives, wh-questions, yes-no questions, imperatives, raising DONE
+YES-NO QUESTIONS: same propositional content as the declarative (only the parse
+sentence-type feature differs, YNQUEST vs DECL), so extracts to the IDENTICAL
+graph -- no new code; semantically the proposition used as a boolean/existence
+query. "does the dog see the man ?" == "the dog sees the man ." ->
+[SEE]-(agnt)->[DOG: #] (obj)->[MAN: #]. See test/extract-yesno-headless.lisp.
+(All the major sentence types are now handled. Remaining: anaphora, adverbs,
+genitives, apposition #11, the `*'-set-member reader nicety.)
 RAISING: works with NO new code. A raising verb (seem) takes only the clausal
 complement (no agent); PARSIFAL resolves the surface subject as the embedded
 agent at the case level, so "the boy seems to go ." ->
