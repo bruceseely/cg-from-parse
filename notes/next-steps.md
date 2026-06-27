@@ -129,6 +129,16 @@ IR kind :named. "mitch sees the dog ." -> [SEE]-(agnt)->[PERSON: Mitch]
 (obj)->[DOG: #]. (mitch/chicago are in the dict; other names need a df.) See
 test/extract-named-headless.lisp. Still open: numbers/plurals (sets/counts).
 
+## 11. Apposition: "the dog, Spot" -> [DOG: Spot]
+A standalone named individual only gets the BROAD type from the name's marker
+(anim -> [ANIMAL: Fido], never [DOG: Fido]). To get the specific type, the head
+noun must supply it via apposition: "the dog, Spot" -> [DOG: Spot]. BLOCKED on
+the parser: PARSIFAL has no apposition grammar -- "... the dog , spot ." fails
+to parse (NIL) -- so this needs new grammar rules on the PARSIFAL side (parse a
+name in apposition to a common-noun NP, keeping the noun's type + the name),
+then a small extractor merge (head-noun type + :named name). cgraph already
+supports [DOG: Spot]; the gap is purely parser/lexicon (and the name needs a df).
+
 ## 10. Ergonomic driver  — DONE
 `cg-from-parse:parse-and-extract` (system/driver.lisp): string → cgraph graph.
 `ensure-grammar` loads parsifal's clause-grammar.lisp + `load-full-grammar` once
