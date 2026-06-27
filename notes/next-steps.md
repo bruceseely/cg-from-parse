@@ -74,7 +74,17 @@ the surface tree (VP and NP daughters) -- while a licensed PP is already a case
 PP (e.g. "put", "change") would surface it as a case (loc/manr already mapped),
 but none is in test-types.
 
-Still open under modifiers: adverbs (manr), genitives/possessives (poss), and
+ADVERBS are BLOCKED (same root cause as PP adjuncts), investigated 2026-06-27:
+manner adverbs (quickly/slowly) are NOT in the lexicon (dropped as unknown); and
+the deictic adverbs that ARE lexicalized (here/now/there) get DROPPED by a verb
+that doesn't license them ("the man sees the dog here ." -> only AGT/NEUT, no
+loc/time case, no mod) -- exactly like unlicensed PP adjuncts. So adverb->manr
+can't be exercised (the manr/loc relations are already in *case-role->relation*,
+so a verb that LICENSES a manner/loc case would map, but none in test-types does).
+To unblock: add manner adverbs to the lexicon AND grammar rules that attach
+unlicensed adverbial adjuncts (PARSIFAL side), then read them like adjectives.
+
+Still open under modifiers: genitives/possessives (poss) and
 adjective-class-specific relations.
 
 ## 6. Reconsider the `prop` relation
