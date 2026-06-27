@@ -96,7 +96,14 @@ manually-set defining `*x` gets wiped; both coref occurrences render `?x1`
 If a proper `*x` defining marker is wanted in the text, it needs formatter
 cooperation (cgraph side).
 
-## 9. Other sentence types  — PARTIAL (passives, wh-questions done)
+## 9. Other sentence types  — PARTIAL (passives, wh-questions, imperatives done)
+IMPERATIVES: PARSIFAL inserts the implicit 2nd-person subject, so the agent
+arrives as the pronoun "you". Personal pronouns (pronoun-type: you/i/he/she/we/
+they->person, it->entity) are realized as indexical individuals [TYPE: Pronoun]
+(reusing :named), e.g. "see the dog ." -> [SEE]-(agnt)->[PERSON: You] (obj)->
+[DOG: #]. Anaphora resolution (he/she/it -> antecedent) is future work. See
+test/extract-imperative-headless.lisp.
+
 WH-QUESTIONS: a wh-interrogative is the queried element -> a concept of the
 wh-type (wh-type: who/whom->person, what/which->entity, where->place) carrying a
 query VARIABLE (set-variable), making the graph a runnable query pattern. Two

@@ -109,6 +109,11 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   the book ."* and prepositional dative *"… gives the book to the woman ."* both
   yield `[GIVE]-(agnt)→[MAN] (obj)→[BOOK] (rcpt)→[WOMAN].` (the `to`-PP fills the
   DAT case). See `test/extract-ditransitive-headless.lisp`.
+- **Imperatives: working.** PARSIFAL supplies the implicit 2nd-person subject, so
+  the agent comes through as "you", realized as an indexical individual
+  `[PERSON: You]`. *"see the dog ."* → `[SEE]-(agnt)→[PERSON: You] (obj)→[DOG: #].`
+  (Personal pronouns generally map to indexical individuals; anaphora resolution
+  is future work.) See `test/extract-imperative-headless.lisp`.
 - **wh-questions: extracted as queries.** A wh-interrogative (in-place subject
   "who", or a fronted "what" leaving a trace) is the queried element — a concept
   of the wh-type (who→person, what→entity, …) carrying a query variable (`*x`),

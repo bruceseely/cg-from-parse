@@ -150,6 +150,14 @@ recursion path, used to break structural cycles (as ctree1 does)."
     ((wh-lemma-p (effective-lemma filler))
      (let ((wh (effective-lemma filler)))
        (list :kind :query :node filler :type-hint (wh-type wh) :wh wh)))
+    ;; A personal pronoun ("you" -- esp. the implicit imperative subject -- I,
+    ;; he, it, ...): an indexical individual [TYPE: Pronoun].
+    ((pronoun-lemma-p (effective-lemma filler))
+     (let ((p (effective-lemma filler)))
+       (list :kind :named :node filler
+             :name (string-capitalize (string p))
+             :type-hint (pronoun-type p)
+             :words (pa::node-words filler))))
     ;; Both clauses and NPs carry a `pred' in their case frame (an NP's pred is
     ;; its head noun -- cf. ctree's "PRED: BOY"). Distinguish by filled cases:
     ;; a predicate clause has them, a plain NP does not.
@@ -193,6 +201,26 @@ recursion path, used to break structural cycles (as ctree1 does)."
 (defun wh-lemma-p (lemma)
   "True when LEMMA is a wh-interrogative word."
   (and (wh-type lemma) t))
+
+(defparameter *pronoun-type*
+  (list (cons "YOU" 'cg::person) (cons "I"  'cg::person) (cons "ME"  'cg::person)
+        (cons "HE"  'cg::person) (cons "HIM" 'cg::person)
+        (cons "SHE" 'cg::person) (cons "HER" 'cg::person)
+        (cons "WE"  'cg::person) (cons "US"  'cg::person)
+        (cons "THEY" 'cg::person) (cons "THEM" 'cg::person)
+        (cons "IT"  'cg::entity))
+  "Personal-pronoun word -> cgraph concept-type. Treated as an indexical
+individual ([PERSON: You]); anaphora resolution (he/she/it -> antecedent) is
+future work. \"you\" is the implicit subject of imperatives.")
+
+(defun pronoun-type (lemma)
+  "Concept-type for a personal-pronoun LEMMA (you/i/he/... -> person, it ->
+entity), or NIL."
+  (and lemma (cdr (assoc (string-upcase (string lemma)) *pronoun-type* :test #'string=))))
+
+(defun pronoun-lemma-p (lemma)
+  "True when LEMMA is a personal pronoun."
+  (and (pronoun-type lemma) t))
 
 (defun np-determiner (node)
   "Definiteness of an NP NODE from its features: :definite (the) / :indefinite
