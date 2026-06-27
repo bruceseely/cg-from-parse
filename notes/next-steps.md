@@ -1,5 +1,11 @@
 # cg-from-parse — next steps
 
+> NEXT UP (paused 2026-06-27): **genitives / possessives** ("the man's dog" ->
+> [DOG]<-(poss)<-[MAN], or [MAN: #]->(poss)->[DOG]). First PROBE whether genitives
+> parse and where the possessor attaches (genitive `'s`, a poss case, or surface).
+> Note: `poss` source is ANIMATE (not ACT), so it's noun->noun, NOT the
+> [PRED]->(rel) path -- emit it like an adjective/mod on the possessed noun.
+
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
 priority order. Current state (2026-06-25): transitive clauses, control
 coreference (shared-node + cross-context `?x`), and clausal-complement embedding
