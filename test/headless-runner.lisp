@@ -33,6 +33,7 @@
     ("number"       . extract-number-headless-test)
     ("question"     . extract-question-headless-test)
     ("imperative"   . extract-imperative-headless-test)
+    ("raising"      . extract-raising-headless-test)
     ("driver"       . extract-driver-headless-test))
   "(label . test-function) for each extract-<label>-headless.lisp script.")
 

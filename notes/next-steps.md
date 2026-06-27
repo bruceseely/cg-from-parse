@@ -96,7 +96,13 @@ manually-set defining `*x` gets wiped; both coref occurrences render `?x1`
 If a proper `*x` defining marker is wanted in the text, it needs formatter
 cooperation (cgraph side).
 
-## 9. Other sentence types  — PARTIAL (passives, wh-questions, imperatives done)
+## 9. Other sentence types  — PARTIAL (passives, wh-questions, imperatives, raising done)
+RAISING: works with NO new code. A raising verb (seem) takes only the clausal
+complement (no agent); PARSIFAL resolves the surface subject as the embedded
+agent at the case level, so "the boy seems to go ." ->
+[SEEM]->(prop)->[PROPOSITION:[GO]->(agnt)->[BOY: #]] falls out of the proposition
+machinery. See test/extract-raising-headless.lisp.
+
 IMPERATIVES: PARSIFAL inserts the implicit 2nd-person subject, so the agent
 arrives as the pronoun "you". Personal pronouns (pronoun-type: you/i/he/she/we/
 they->person, it->entity) are realized as indexical individuals [TYPE: Pronoun]

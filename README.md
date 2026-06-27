@@ -109,6 +109,11 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   the book ."* and prepositional dative *"… gives the book to the woman ."* both
   yield `[GIVE]-(agnt)→[MAN] (obj)→[BOOK] (rcpt)→[WOMAN].` (the `to`-PP fills the
   DAT case). See `test/extract-ditransitive-headless.lisp`.
+- **Raising: working.** A raising verb (`seem`) takes only the clausal complement
+  (no agent of its own), with the surface subject semantically the embedded
+  agent. *"the boy seems to go ."* → `[SEEM]→(prop)→[PROPOSITION:[GO]→(agnt)→[BOY: #]].`
+  PARSIFAL resolves it at the case level, so it falls out of the proposition
+  machinery with no new code. See `test/extract-raising-headless.lisp`.
 - **Imperatives: working.** PARSIFAL supplies the implicit 2nd-person subject, so
   the agent comes through as "you", realized as an indexical individual
   `[PERSON: You]`. *"see the dog ."* → `[SEE]-(agnt)→[PERSON: You] (obj)→[DOG: #].`
