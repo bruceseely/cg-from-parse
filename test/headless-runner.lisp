@@ -30,6 +30,7 @@
     ("determiner"   . extract-determiner-headless-test)
     ("quantifier"   . extract-quantifier-headless-test)
     ("named"        . extract-named-headless-test)
+    ("number"       . extract-number-headless-test)
     ("driver"       . extract-driver-headless-test))
   "(label . test-function) for each extract-<label>-headless.lisp script.")
 

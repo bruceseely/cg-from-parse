@@ -32,9 +32,11 @@
 ;;;   (:kind :clause  ...)                       ; nested predicate (recurse)
 ;;;   (:kind :entity  :node N :lemma LEMMA :words (W..)
 ;;;                   :determiner :definite/:indefinite/NIL
-;;;                   :quantifier :universal/:existential/NIL :adjs (ADJ..)
-;;;                   :mods (CLAUSE-IR..))       ; an NP; definite -> [X: #];
-;;;                                              ; :adjs = adjectives, :mods = rel clauses
+;;;                   :quantifier :universal/:existential/NIL
+;;;                   :number :singular/:plural :count N/NIL :adjs (ADJ..)
+;;;                   :mods (CLAUSE-IR..))       ; an NP; definite -> [X: #],
+;;;                                              ; plural -> [X: {*}]; :adjs = adjectives,
+;;;                                              ; :mods = relative clauses
 ;;;   (:kind :trace   :binding PA-NODE :words (W..)) ; a bound trace (coref)
 ;;;   (:kind :backref :lemma LEMMA)               ; structural cycle, not recursed
 ;;;   (:kind :empty)                              ; nil filler
@@ -149,6 +151,8 @@ recursion path, used to break structural cycles (as ctree1 does)."
               :words (pa::node-words filler)
               :determiner (np-determiner filler)
               :quantifier (np-quantifier filler)
+              :number (np-number filler)
+              :count  (np-count filler)
               :adjs  (adjective-lemmas filler)
               :mods  (clausal-mods filler seen)))))
     (t
@@ -157,6 +161,8 @@ recursion path, used to break structural cycles (as ctree1 does)."
            :words (pa::node-words filler)
            :determiner (np-determiner filler)
            :quantifier (np-quantifier filler)
+           :number (np-number filler)
+           :count  (np-count filler)
            :adjs  (adjective-lemmas filler)
            :mods  (clausal-mods filler seen)))))
 
@@ -167,6 +173,17 @@ recursion path, used to break structural cycles (as ctree1 does)."
     (cond ((member 'pa::def   fe) :definite)
           ((member 'pa::indef fe) :indefinite)
           (t nil))))
+
+(defun np-number (node)
+  "Grammatical number of an NP NODE: :plural (NPL feature) else :singular."
+  (if (member 'pa::npl (ignore-errors (pa::fe node))) :plural :singular))
+
+(defun np-count (node)
+  "Cardinality of an NP NODE when it leads with a number word (\"three dogs\" ->
+3), else NIL. The number word carries its value on its `quant' property."
+  (let* ((words (ignore-errors (pa::node-words node)))
+         (q     (and words (ignore-errors (get (first words) 'pa::quant)))))
+    (when (numberp q) q)))
 
 (defparameter *proper-noun-type* 'cg::person
   "Default concept-type for a proper name when its markers don't pin one down.")
@@ -302,37 +319,50 @@ participle, else NIL (active is the cgraph default)."
 ;;; Emission layer:  IR  ->  cgraph
 ;;; ===========================================================================
 
-(defun definite-concept (ctype)
-  "A concept of CTYPE carrying the definite referent -- renders [X: #]."
-  (cg::make-concept ctype (cg::make-referent (cg::make-individual ctype nil :id t))))
+(defun build-referent (ctype &key definite plural count)
+  "Referent for a concept of CTYPE, by precedence:
+  plural/count -> a generic set ([X: {*}]), with COUNT stored as a :measure
+                  (cgraph's formatter doesn't render set cardinality, so the
+                  count is captured but not shown -- like tense/voice);
+  definite      -> a definite individual ([X: #]);
+  else          -> NIL (bare [X])."
+  (cond
+    ((or plural count)
+     (let ((ref (cg::make-referent (cg::build-set-from-specs (list "*") ctype))))
+       (when count (setf (getf (cg::properties ref) :measure) count))
+       ref))
+    (definite (cg::make-referent (cg::make-individual ctype nil :id t)))
+    (t nil)))
 
-(defun concept-of (ctype definite)
-  "A concept of CTYPE: definite ([X: #]) when DEFINITE, else bare ([X])."
-  (if definite (definite-concept ctype) (cg::make-concept ctype nil)))
+(defun concept-of (ctype &key definite plural count)
+  "A concept of CTYPE with the referent implied by definite/plural/count."
+  (cg::make-concept ctype (build-referent ctype :definite definite
+                                                :plural plural :count count)))
 
-(defun concept-for (lemma required-type &optional definite)
+(defun concept-for (lemma required-type &key definite plural count)
   "A cgraph concept whose type is named LEMMA. REQUIRED-TYPE is the concept-type
 the surrounding relation demands (used only under *on-missing-type* :create to
-place a newly-created type so arcs type-check). DEFINITE marks a definite NP
-(\"the X\" -> [X: #]); otherwise the concept is bare."
+place a newly-created type so arcs type-check). DEFINITE/PLURAL/COUNT pick the
+referent (see build-referent)."
   ;; The parser emits lemmas as :parsifal symbols (e.g. pa::eat) while cgraph
   ;; types live in :cg; normalize by name so the lookup crosses packages.
   (let* ((name  (intern (string-upcase (string lemma)) :cg))
          (ctype (ignore-errors (cg::get-concept-type name))))
-    (cond
-      (ctype (concept-of ctype definite))
-      ((eq *on-missing-type* :create)
-       ;; NB: make-concept-type must get a SYMBOL here -- the STRING method
-       ;; (types.lisp) forces the supertype to WORD and ignores supertypes-list;
-       ;; the symbol method honors it.
-       (cg::make-concept-type name
-                              :supertypes-list (list (type-label required-type)))
-       (concept-of (cg::get-concept-type name) definite))
-      ((eq *on-missing-type* :top)
-       (concept-of cg::*concept-type-top* definite))
-      (t
-       (error "cg-from-parse: no concept type for lemma ~a ~
-               (and *on-missing-type* is ~s)" lemma *on-missing-type*)))))
+    (flet ((mk (ct) (concept-of ct :definite definite :plural plural :count count)))
+      (cond
+        (ctype (mk ctype))
+        ((eq *on-missing-type* :create)
+         ;; NB: make-concept-type must get a SYMBOL here -- the STRING method
+         ;; (types.lisp) forces the supertype to WORD and ignores supertypes-list;
+         ;; the symbol method honors it.
+         (cg::make-concept-type name
+                                :supertypes-list (list (type-label required-type)))
+         (mk (cg::get-concept-type name)))
+        ((eq *on-missing-type* :top)
+         (mk cg::*concept-type-top*))
+        (t
+         (error "cg-from-parse: no concept type for lemma ~a ~
+                 (and *on-missing-type* is ~s)" lemma *on-missing-type*))))))
 
 (defun type-label (type-designator)
   "A symbol/label suitable for make-concept-type :supertypes-list, given a
@@ -343,13 +373,15 @@ concept-type object or a symbol."
 (defvar *node->corefvar*)   ; PARSIFAL node -> coreference label (for cross-context coref)
 (defvar *corefvar-counter*) ; allocates fresh coreference labels
 
-(defun concept-for-node (node lemma required-type &optional definite)
+(defun concept-for-node (node lemma required-type &key definite plural count)
   "Concept for PARSIFAL NODE, reusing the one already emitted for it if present
 -- this is how coreference is realized: a trace and its antecedent map to the
 SAME node, hence the same concept (one node, several arcs). Otherwise create a
-concept of type LEMMA (DEFINITE -> [X: #]), register it under NODE, and return it."
+concept of type LEMMA (referent per definite/plural/count), register it under
+NODE, and return it."
   (or (and node (gethash node *node->concept*))
-      (let ((concept (concept-for lemma required-type definite)))
+      (let ((concept (concept-for lemma required-type
+                                  :definite definite :plural plural :count count)))
         (when node (setf (gethash node *node->concept*) concept))
         concept)))
 
@@ -423,7 +455,9 @@ concepts, e.g. an unbound trace)."
                              (getf filler :node)))
     (:entity  (let ((concept (concept-for-node (getf filler :node)
                                                (getf filler :lemma) required-type
-                                               (eq (getf filler :determiner) :definite))))
+                                               :definite (eq (getf filler :determiner) :definite)
+                                               :plural   (eq (getf filler :number) :plural)
+                                               :count    (getf filler :count))))
                 ;; Quantifier (all/some...): stored on the concept, like
                 ;; tense/voice -- not shown in linear form, used by the realizer.
                 (let ((q (getf filler :quantifier)))

@@ -124,6 +124,12 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   place→place, anim→animal, else `*proper-noun-type*`). *"mitch sees the dog ."*
   → `[SEE]-(agnt)→[PERSON: Mitch] (obj)→[DOG: #].` See
   `test/extract-named-headless.lisp`.
+- **Number/plural: extracted onto the referent.** A plural NP becomes a generic
+  set, `[X: {*}]` (renders `[X: {}]`); a leading number adds the cardinality.
+  *"three dogs see the man ."* → `[SEE]-(agnt)→[DOG: {}] (obj)→[MAN: #].`
+  (cgraph's formatter renders the set but not its count, so the count is stored
+  as a `:measure` on the referent — captured, not shown.) See
+  `test/extract-number-headless.lisp`.
 - **Quantifiers: extracted onto the concept.** A leading quantifier maps to
   `concept-quantifier`: all/every/each/any → `:universal`, some → `:existential`.
   Like tense/voice it's a stored slot, not shown in linear form. (PARSIFAL's

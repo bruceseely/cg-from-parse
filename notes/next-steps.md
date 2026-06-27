@@ -127,7 +127,16 @@ semantic markers (smarkers: place->place, hanim->person, anim->animal, else
 *proper-noun-type*=person). proper-name / proper-name-type / named-concept; new
 IR kind :named. "mitch sees the dog ." -> [SEE]-(agnt)->[PERSON: Mitch]
 (obj)->[DOG: #]. (mitch/chicago are in the dict; other names need a df.) See
-test/extract-named-headless.lisp. Still open: numbers/plurals (sets/counts).
+test/extract-named-headless.lisp.
+
+NUMBERS/PLURALS — DONE: a plural NP (NPL feature, np-number) → a generic set
+referent ([X: {*}], renders {}); a leading number (np-count, from the word's
+`quant' property) adds the cardinality, stored as a :measure on the referent.
+build-referent picks set (plural/count) vs # (definite) vs bare; concept-for /
+concept-for-node take &key definite plural count. "three dogs see the man ." ->
+[DOG: {}] with count 3 on the referent. NB cgraph's formatter renders the set
+but NOT its cardinality (count captured, not shown -- like tense/voice; verified
+via the :measure slot). See test/extract-number-headless.lisp.
 
 ## 11. Apposition: "the dog, Spot" -> [DOG: Spot]
 A standalone named individual only gets the BROAD type from the name's marker
