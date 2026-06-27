@@ -182,6 +182,25 @@ name in apposition to a common-noun NP, keeping the noun's type + the name),
 then a small extractor merge (head-noun type + :named name). cgraph already
 supports [DOG: Spot]; the gap is purely parser/lexicon (and the name needs a df).
 
+## 12. Anaphora (pronoun -> antecedent)  — DEFERRED (2026-06-27)
+Pronouns are already RECOGNIZED (pronoun-type -> indexical individuals:
+"the man sees him ." -> [SEE]-(agnt)->[MAN: #] (obj)->[PERSON: He];
+"... it ." -> [ENTITY: It]). RESOLVING them to antecedents is deferred -- it's a
+separate, fuzzy module with no parser support:
+- PARSIFAL does NOT bind pronouns: "the man sees him ." -> him has binding=NIL
+  (unlike traces/relative-gaps/wh, which are syntactic movement and come bound).
+- Reflexives aren't in the lexicon (himself/herself dropped), so even the easy
+  syntactically-bound case is unavailable.
+- Most anaphora is CROSS-sentence ("...the dog. it runs."), but we parse one
+  sentence at a time.
+- A real resolver needs gender/number agreement + salience/recency + binding
+  theory (e.g. in "the man sees him", `him' must NOT be the man), so a naive
+  nearest-NP heuristic is wrong. Not worth a fuzzy, untestable resolver now.
+If revisited: scope to a narrow intra-sentence pattern with a permissive binding
+("the man thinks he sees the dog"), gated and clearly heuristic; add reflexives
+to the lexicon for the clean bound case; or do resolution as a post-pass over a
+multi-sentence discourse once that's parsed.
+
 ## 10. Ergonomic driver  — DONE
 `cg-from-parse:parse-and-extract` (system/driver.lisp): string → cgraph graph.
 `ensure-grammar` loads parsifal's clause-grammar.lisp + `load-full-grammar` once
