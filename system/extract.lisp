@@ -28,6 +28,7 @@
 ;;; A case (one filled thematic role):
 ;;;   (:role ROLE-SYMBOL :gfunc GFUNC-SYMBOL :filler FILLER)
 ;;; A filler is one of:
+;;;   (:kind :named   :name "Mitch" :type-hint cg-type :node N) ; proper name
 ;;;   (:kind :clause  ...)                       ; nested predicate (recurse)
 ;;;   (:kind :entity  :node N :lemma LEMMA :words (W..)
 ;;;                   :determiner :definite/:indefinite/NIL
@@ -117,6 +118,13 @@ surface word when the head can't be located."
 recursion path, used to break structural cycles (as ctree1 does)."
   (cond
     ((null filler) (list :kind :empty))
+    ;; A proper name ("Mitch", "Chicago"): a named individual [TYPE: Name].
+    ((member 'pa::name (ignore-errors (pa::fe filler)))
+     (list :kind :named
+           :node filler
+           :name (proper-name filler)
+           :type-hint (proper-name-type filler)
+           :words (pa::node-words filler)))
     ;; A bound gap: a trace (control/raising) OR an overt bound relative pronoun
     ;; (who/that/which, the subject of a subject relative). Either corefers with
     ;; its ultimate antecedent (gap -> who -> head noun); share that concept.
@@ -159,6 +167,23 @@ recursion path, used to break structural cycles (as ctree1 does)."
     (cond ((member 'pa::def   fe) :definite)
           ((member 'pa::indef fe) :indefinite)
           (t nil))))
+
+(defparameter *proper-noun-type* 'cg::person
+  "Default concept-type for a proper name when its markers don't pin one down.")
+
+(defun proper-name (node)
+  "The proper-name string of a name NP, e.g. \"Mitch\" (capitalized)."
+  (let ((w (ignore-errors (pa::getr 'pa::word (pa::daughter 'pa::noun node)))))
+    (when w (string-capitalize (string w)))))
+
+(defun proper-name-type (node)
+  "cgraph concept-type for a proper name, from its semantic markers: place ->
+place, hanim -> person, anim -> animal, else *proper-noun-type*."
+  (let ((markers (ignore-errors (pa::smarkers node))))
+    (cond ((member 'pa::place markers) 'cg::place)
+          ((member 'pa::hanim markers) 'cg::person)
+          ((member 'pa::anim  markers) 'cg::animal)
+          (t *proper-noun-type*))))
 
 (defun np-quantifier (node)
   "Quantifier of an NP NODE -- :universal (all/every/each/any) / :existential
@@ -377,12 +402,25 @@ set-arc-from-relation, so we can decide before mutating the graph."
         (cg::supertype-p ct dt)
         (equal ct (cg::label dt)))))
 
+(defun named-concept (type-hint name node)
+  "A named-individual concept, [TYPE-HINT: NAME] -- reusing NODE's already-emitted
+concept if present (coreference)."
+  (or (and node (gethash node *node->concept*))
+      (let* ((ctype   (or (ignore-errors (cg::get-concept-type type-hint))
+                          cg::*concept-type-top*))
+             (indiv   (cg::make-individual ctype (list :name name)))
+             (concept (cg::make-concept ctype (cg::make-referent indiv))))
+        (when node (setf (gethash node *node->concept*) concept))
+        concept)))
+
 (defun emit-filler (filler required-type)
   "Emit a filler IR; return its concept (or NIL for fillers we don't realize as
 concepts, e.g. an unbound trace)."
   (case (getf filler :kind)
     ;; A clausal complement is embedded as a proposition context concept.
     (:clause  (emit-clause-as-proposition filler))
+    (:named   (named-concept (getf filler :type-hint) (getf filler :name)
+                             (getf filler :node)))
     (:entity  (let ((concept (concept-for-node (getf filler :node)
                                                (getf filler :lemma) required-type
                                                (eq (getf filler :determiner) :definite))))

@@ -119,8 +119,15 @@ QUANTIFIERS — DONE (universal/existential): the NP's leading surface word
 stored slot, NOT rendered in linear form (checked via IR + slot, see
 test/extract-quantifier-headless.lisp). NB: PARSIFAL's loaded lexicon has
 all/some/any but NOT every/each; quant register on the node was empty, so detect
-from node-words. Still open: numbers/plurals (sets/counts), named individuals
-("Bob" → [MAN: Bob]).
+from node-words.
+
+NAMED INDIVIDUALS — DONE: a proper-name NP (the `name' feature) becomes a named
+individual [TYPE: Name] -- name from (getr 'word (daughter 'noun np)), type from
+semantic markers (smarkers: place->place, hanim->person, anim->animal, else
+*proper-noun-type*=person). proper-name / proper-name-type / named-concept; new
+IR kind :named. "mitch sees the dog ." -> [SEE]-(agnt)->[PERSON: Mitch]
+(obj)->[DOG: #]. (mitch/chicago are in the dict; other names need a df.) See
+test/extract-named-headless.lisp. Still open: numbers/plurals (sets/counts).
 
 ## 10. Ergonomic driver  — DONE
 `cg-from-parse:parse-and-extract` (system/driver.lisp): string → cgraph graph.

@@ -119,6 +119,11 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   loc→loc, manr→manr. Each is `[PRED]→(rel)→[filler]` so only act-source relations
   belong. Note: PP *adjuncts* (locatives/instruments) are surface-only (not in the
   case frame), so loc/manr need a verb that licenses them — see `notes/next-steps.md`.
+- **Named individuals: extracted.** A proper name becomes a named individual
+  `[TYPE: Name]` — type from the name's semantic markers (hanim→person,
+  place→place, anim→animal, else `*proper-noun-type*`). *"mitch sees the dog ."*
+  → `[SEE]-(agnt)→[PERSON: Mitch] (obj)→[DOG: #].` See
+  `test/extract-named-headless.lisp`.
 - **Quantifiers: extracted onto the concept.** A leading quantifier maps to
   `concept-quantifier`: all/every/each/any → `:universal`, some → `:existential`.
   Like tense/voice it's a stored slot, not shown in linear form. (PARSIFAL's
