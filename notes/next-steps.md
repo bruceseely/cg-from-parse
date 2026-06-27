@@ -96,7 +96,17 @@ manually-set defining `*x` gets wiped; both coref occurrences render `?x1`
 If a proper `*x` defining marker is wanted in the text, it needs formatter
 cooperation (cgraph side).
 
-## 9. Other sentence types  — PARTIAL (passives done)
+## 9. Other sentence types  — PARTIAL (passives, wh-questions done)
+WH-QUESTIONS: a wh-interrogative is the queried element -> a concept of the
+wh-type (wh-type: who/whom->person, what/which->entity, where->place) carrying a
+query VARIABLE (set-variable), making the graph a runnable query pattern. Two
+shapes: subject-wh in place ("who sees...", lemma via effective-lemma) and
+fronted-wh leaving a trace ("what does X see", a gap whose binding lemma is the
+wh word). IR kind :query; query-concept. NB the lone *x isn't rendered by the
+formatter (it's on the concept). who->[PERSON: *x], what->[ENTITY: *x]. See
+test/extract-question-headless.lisp. Still open: yes-no questions, imperatives,
+raising. (Bare `?' is a no-op in cgraph; `?x' is coreference; queries use *x.)
+
 PASSIVES: PARSIFAL normalizes roles (logical object → NEUT, agent only via a
 by-phrase), so roles need no new code; voice is read from the verb's `passive'
 feature → `concept-voice :passive' (clause-verb-node / clause-voice). NB:

@@ -109,6 +109,13 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
   the book ."* and prepositional dative *"… gives the book to the woman ."* both
   yield `[GIVE]-(agnt)→[MAN] (obj)→[BOOK] (rcpt)→[WOMAN].` (the `to`-PP fills the
   DAT case). See `test/extract-ditransitive-headless.lisp`.
+- **wh-questions: extracted as queries.** A wh-interrogative (in-place subject
+  "who", or a fronted "what" leaving a trace) is the queried element — a concept
+  of the wh-type (who→person, what→entity, …) carrying a query variable (`*x`),
+  so the result is a runnable query pattern for cgraph's query engine.
+  *"who sees the dog ?"* → `[SEE]-(agnt)→[PERSON: *x] (obj)→[DOG: #]`. (The lone
+  `*x` isn't shown by the formatter; it's on the concept.) See
+  `test/extract-question-headless.lisp`.
 - **Adjective modifiers: working.** *"the big dog sees the man ."* →
   `[SEE]-(agnt)→[DOG]→(attr)→[BIG] (obj)→[MAN].` An adjective (a surface `adj`
   daughter of its NP) becomes `[NOUN]→(attr)→[ADJ]`. See

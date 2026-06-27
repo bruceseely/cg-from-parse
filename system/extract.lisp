@@ -28,6 +28,7 @@
 ;;; A case (one filled thematic role):
 ;;;   (:role ROLE-SYMBOL :gfunc GFUNC-SYMBOL :filler FILLER)
 ;;; A filler is one of:
+;;;   (:kind :query   :type-hint cg-type :wh WHO/WHAT/... :node N) ; wh-question gap
 ;;;   (:kind :named   :name "Mitch" :type-hint cg-type :node N) ; proper name
 ;;;   (:kind :clause  ...)                       ; nested predicate (recurse)
 ;;;   (:kind :entity  :node N :lemma LEMMA :words (W..)
@@ -115,6 +116,12 @@ surface word when the head can't be located."
     (or (and h (pa::word h))
         (first (pa::node-words np-node)))))
 
+(defun effective-lemma (node)
+  "The lemma an entity NP would use: its case-frame pred if present, else its
+head-noun word."
+  (or (ignore-errors (pa::getc 'pa::pred node))
+      (entity-lemma node)))
+
 (defun filler->ir (filler seen)
   "Convert one case FILLER (a PARSIFAL node) into a filler IR. SEEN is the
 recursion path, used to break structural cycles (as ctree1 does)."
@@ -127,15 +134,22 @@ recursion path, used to break structural cycles (as ctree1 does)."
            :name (proper-name filler)
            :type-hint (proper-name-type filler)
            :words (pa::node-words filler)))
-    ;; A bound gap: a trace (control/raising) OR an overt bound relative pronoun
-    ;; (who/that/which, the subject of a subject relative). Either corefers with
-    ;; its ultimate antecedent (gap -> who -> head noun); share that concept.
+    ;; A bound gap: a trace (control/raising), a relative pronoun (who/that/which
+    ;; in a relative), OR a fronted wh-interrogative leaving a trace (object-wh
+    ;; questions). A wh gap is the QUERIED element -> a query concept; any other
+    ;; gap corefers with its ultimate antecedent (share that concept).
     ((gap-antecedent filler)
-     (let ((b (gap-antecedent filler)))
-       (list :kind :trace
-             :binding b
-             :lemma   (and b (binding-lemma b))
-             :words   (and b (pa::node-words b)))))
+     (let* ((b   (gap-antecedent filler))
+            (lem (and b (binding-lemma b))))
+       (if (wh-lemma-p lem)
+           (list :kind :query :node b :type-hint (wh-type lem) :wh lem)
+           (list :kind :trace :binding b :lemma lem
+                 :words (and b (pa::node-words b))))))
+    ;; A wh-interrogative in place (subject-wh question: "who sees ..."). The
+    ;; wh word may be the case-frame pred or just the NP's head word.
+    ((wh-lemma-p (effective-lemma filler))
+     (let ((wh (effective-lemma filler)))
+       (list :kind :query :node filler :type-hint (wh-type wh) :wh wh)))
     ;; Both clauses and NPs carry a `pred' in their case frame (an NP's pred is
     ;; its head noun -- cf. ctree's "PRED: BOY"). Distinguish by filled cases:
     ;; a predicate clause has them, a plain NP does not.
@@ -165,6 +179,20 @@ recursion path, used to break structural cycles (as ctree1 does)."
            :count  (np-count filler)
            :adjs  (adjective-lemmas filler)
            :mods  (clausal-mods filler seen)))))
+
+(defparameter *wh-type*
+  (list (cons "WHO"   'cg::person) (cons "WHOM" 'cg::person)
+        (cons "WHAT"  'cg::entity) (cons "WHICH" 'cg::entity)
+        (cons "WHERE" 'cg::place))
+  "wh-interrogative word -> cgraph concept-type for the queried element.")
+
+(defun wh-type (lemma)
+  "Concept-type for a wh-word LEMMA (who->person, what->entity, ...), or NIL."
+  (and lemma (cdr (assoc (string-upcase (string lemma)) *wh-type* :test #'string=))))
+
+(defun wh-lemma-p (lemma)
+  "True when LEMMA is a wh-interrogative word."
+  (and (wh-type lemma) t))
 
 (defun np-determiner (node)
   "Definiteness of an NP NODE from its features: :definite (the) / :indefinite
@@ -434,6 +462,18 @@ set-arc-from-relation, so we can decide before mutating the graph."
         (cg::supertype-p ct dt)
         (equal ct (cg::label dt)))))
 
+(defun query-concept (node type-hint)
+  "A query (requested) concept for a wh-question gap: a generic concept of
+TYPE-HINT carrying a fresh query variable (*x), so the result is a runnable
+query pattern (cgraph's query engine solves for the variable). Reused per node."
+  (or (and node (gethash node *node->concept*))
+      (let* ((ctype   (or (ignore-errors (cg::get-concept-type type-hint))
+                          cg::*concept-type-top*))
+             (concept (cg::make-concept ctype nil)))
+        (cg::set-variable concept (intern (format nil "X~d" (incf *corefvar-counter*)) :cg))
+        (when node (setf (gethash node *node->concept*) concept))
+        concept)))
+
 (defun named-concept (type-hint name node)
   "A named-individual concept, [TYPE-HINT: NAME] -- reusing NODE's already-emitted
 concept if present (coreference)."
@@ -451,6 +491,7 @@ concepts, e.g. an unbound trace)."
   (case (getf filler :kind)
     ;; A clausal complement is embedded as a proposition context concept.
     (:clause  (emit-clause-as-proposition filler))
+    (:query   (query-concept (getf filler :node) (getf filler :type-hint)))
     (:named   (named-concept (getf filler :type-hint) (getf filler :name)
                              (getf filler :node)))
     (:entity  (let ((concept (concept-for-node (getf filler :node)
