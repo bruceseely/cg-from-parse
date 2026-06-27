@@ -134,10 +134,13 @@ referent ([X: {*}], renders {}); a leading number (np-count, from the word's
 `quant' property) adds the cardinality, stored as a :measure on the referent.
 build-referent picks set (plural/count) vs # (definite) vs bare; concept-for /
 concept-for-node take &key definite plural count. "three dogs see the man ." ->
-[DOG: {}@3] (count 3 on the referent, rendered as @3). The set's cardinality is
-now shown: fixed a cgraph formatter bug where format-referent dropped a set's
-:measure (cgraph commit, system/core/referent.lisp + format-measure). See
-test/extract-number-headless.lisp.
+[DOG: @3] (count 3 on the referent). The set's cardinality is now shown: fixed a
+cgraph formatter bug where format-referent dropped a set's :measure (cgraph
+commit, system/core/referent.lisp + format-measure). A generic plural with a
+count renders as @N; a set with named members renders [X: {...}@N]. See
+test/extract-number-headless.lisp. (Reader detail: build-set-from-specs drops a
+generic `*' member, so {Spot, Fido, *}@5 reads/renders as {Spot, Fido}@5 -- the
+@5 carries the "5 total" -- a separate reader nicety if the `*' should persist.)
 
 ## 11. Apposition: "the dog, Spot" -> [DOG: Spot]
 A standalone named individual only gets the BROAD type from the name's marker

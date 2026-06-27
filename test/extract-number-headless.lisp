@@ -2,11 +2,12 @@
 ;;;
 ;;; Live number/plural check:
 ;;;   "dogs see the man ."        -> [DOG: {}]  (a generic plural set)
-;;;   "three dogs see the man ."  -> [DOG: {}]  + cardinality 3 on the referent
+;;;   "three dogs see the man ."  -> [DOG: @3]  (a generic plural with a count)
 ;;; A plural NP (NPL) becomes a generic set referent; a leading number adds the
-;;; count, stored as a :measure on the referent and rendered as @N after the set
-;;; (e.g. "three dogs" -> [DOG: {}@3]). Checked here both in the rendered text and
-;;; via the referent slot.
+;;; count, stored as a :measure on the referent. cgraph's formatter renders a
+;;; generic plural with a count as just @N (the empty {} adds nothing); a set
+;;; with named members would render [X: {...}@N]. Checked here both in the
+;;; rendered text and via the referent slot.
 ;;;
 ;;;   sbcl --non-interactive --disable-debugger \
 ;;;     --eval '(ql:quickload :swank)' --eval '(ql:quickload :cg-from-parse)' \
@@ -42,7 +43,7 @@
   (multiple-value-bind (set3 c3 t3) (dog-referent-info "three dogs see the man .")
     (multiple-value-bind (setp cd td) (dog-referent-info "dogs see the man .")
       (let ((pass (and set3 (eql c3 3)             ; three dogs -> set, count 3
-                       t3 (search "{}@3" t3)       ; ...and the count now renders
+                       t3 (search "@3" t3)         ; ...rendered as a count (@3)
                        setp (null cd)              ; dogs -> set, no count
                        td (search "{}" td)         ; ...renders as a plain set
                        (not (search "@" td)))))    ; ...with no count
