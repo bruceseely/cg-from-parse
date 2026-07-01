@@ -26,7 +26,8 @@
            (t2 (and g2 (ignore-errors (string-upcase (cg::format-cgraph g2)))))
            (pass (and t1 (search "SEE" t1) (search "MAN" t1) (search "DOG" t1)
                       (search "AGNT" t1) (search "OBJ" t1)
-                      t2 (search "PERSUADE" t2) (search "PROPOSITION" t2)
+                      ;; "to go" is an infinitival -> SITUATION wrapper (#7)
+                      t2 (search "PERSUADE" t2) (search "SITUATION" t2)
                       (search "GIRL" t2))))
       (when verbose
         (format t "~&(parse-and-extract \"the man sees the dog .\"):~%~a~%"

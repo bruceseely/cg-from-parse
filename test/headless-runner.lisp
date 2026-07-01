@@ -36,6 +36,7 @@
     ("imperative"   . extract-imperative-headless-test)
     ("raising"      . extract-raising-headless-test)
     ("stative"      . extract-stative-headless-test)
+    ("complement"   . extract-complement-headless-test)
     ("driver"       . extract-driver-headless-test))
   "(label . test-function) for each extract-<label>-headless.lisp script.")
 

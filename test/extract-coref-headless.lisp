@@ -43,8 +43,9 @@
               (graph (handler-bind ((warning #'muffle-warning)) (ir->cgraph ir)))
               (text  (and graph (ignore-errors (cg::format-cgraph graph))))
               (up    (and (stringp text) (string-upcase text)))
-              ;; The clausal complement "to go" is embedded as a PROPOSITION
-              ;; context. The controlled subject of GO corefers with the matrix
+              ;; The clausal complement "to go" is embedded as a SITUATION
+              ;; context (an infinitival is an event, #7). The controlled subject
+              ;; of GO corefers with the matrix
               ;; object (the girl) ACROSS that context boundary, so it shows as
               ;; two occurrences carrying the SAME coref label (cgraph forbids a
               ;; shared node across contexts).
@@ -55,7 +56,7 @@
                          (search "PERSUADE" up)   (search "BOY" up)
                          (search "GIRL" up)       (search "GO" up)
                          (search "AGNT" up)       (search "RCPT" up)
-                         (search "PROPOSITION" up)        ; complement embedded
+                         (search "SITUATION" up)          ; infinitival complement embedded
                          (eql girl-nodes 2)               ; two coref occurrences
                          (eql coref-marks 2)              ; both carry the coref label
                          (eq tense :past))))              ; matrix tense

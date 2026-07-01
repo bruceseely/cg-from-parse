@@ -24,7 +24,10 @@
 ;;; A clause / predicate:
 ;;;   (:kind :clause :pred LEMMA :spec SPEC-NODE-OR-NIL :node PA-NODE
 ;;;    :tense :past/:present/:future/NIL :aspect :perfect/NIL
-;;;    :voice :passive/NIL :cases (CASE ...))
+;;;    :voice :passive/NIL :clause-type :proposition/:situation/NIL
+;;;    :cases (CASE ...))
+;;;   (:clause-type distinguishes a that-clause complement (:proposition) from an
+;;;    infinitival (:situation); NIL for the matrix clause -- see complement-type-for.)
 ;;; A case (one filled thematic role):
 ;;;   (:role ROLE-SYMBOL :gfunc GFUNC-SYMBOL :filler FILLER)
 ;;; A filler is one of:
@@ -95,19 +98,42 @@ otherwise the default *case-role->relation* applies."
            (cdr (assoc role *stative-case-role->relation*)))
       (case-role->relation role)))
 
-(defun complement-relation-for (pred-concept)
-  "Relation to link PRED-CONCEPT to its clausal-complement PROPOSITION. A stative
-predicate uses `stat' ([STATE]->(stat)->[PROPOSITION], the ontology's canonical
-form) when the catalog defines it; otherwise the generic invented
-*clausal-complement-relation* (prop, ⊤->proposition)."
+(defun complement-relation-for (pred-concept filler)
+  "Relation to link PRED-CONCEPT to its clausal complement FILLER. A stative
+predicate whose complement is a PROPOSITION (a that-clause) uses `stat'
+([STATE]->(stat)->[PROPOSITION], the ontology's canonical form) when the catalog
+defines it; otherwise the generic invented *clausal-complement-relation* (prop),
+which accepts either a proposition or a situation wrapper. `stat' is guarded to
+propositions because its dest is PROPOSITION -- a stative verb with an infinitival
+(situation) complement would not type-check against it."
   (or (and (predicate-stative-p pred-concept)
+           (not (eq (getf filler :clause-type) :situation))
            (ignore-errors (cg::get-relation-type *stative-complement-relation*))
            *stative-complement-relation*)
       *clausal-complement-relation*))
 
+(defun complement-type-for (ir)
+  "cgraph concept type that wraps clause IR as a complement: SITUATION for an
+infinitival (:clause-type :situation, an event), else PROPOSITION (a that-clause
+or the default). Falls back to PROPOSITION if the catalog lacks a `situation'."
+  (or (and (eq (getf ir :clause-type) :situation)
+           (ignore-errors (cg::get-concept-type *situation-complement-type*))
+           *situation-complement-type*)
+      *clausal-complement-type*))
+
 (defparameter *clausal-complement-type* 'cg::proposition
   "Graph-compatible concept type that wraps an embedded clause as a context,
-i.e. [PROPOSITION: <inner graph>]. Must be a graph-compatible type.")
+i.e. [PROPOSITION: <inner graph>]. Must be a graph-compatible type. Used for a
+THAT-clause (a statement) and as the default; an infinitival uses
+*situation-complement-type* (see complement-type-for).")
+
+(defparameter *situation-complement-type* 'cg::situation
+  "Graph-compatible concept type wrapping an INFINITIVAL clausal complement as an
+event, i.e. [SITUATION: <inner graph>] for \"to go\". A that-clause is a
+PROPOSITION (a statement, truth-evaluable); an infinitival is a SITUATION (an
+unrealized event). Chosen by the parse's INF-S vs THAT-S feature
+(clause-complement-form); falls back to *clausal-complement-type* if the catalog
+lacks a graph-compatible `situation'.")
 
 (defparameter *adjective-relation* 'cg::attr
   "Relation linking a noun to an adjective modifier: [NOUN]->(attr)->[ADJ]
@@ -116,11 +142,11 @@ age word) won't fit and are skipped with a warning; with *on-missing-type*
 :create an unknown adjective is created under ATTRIBUTE so it fits.")
 
 (defparameter *clausal-complement-relation* 'cg::prop
-  "Relation linking a matrix predicate to its clausal-complement proposition.
-Auto-ensured (source ⊤, dest *clausal-complement-type*) if absent, since no
-standard case relation accepts a proposition dest. Rebind to taste. Used for a
-predicate that is an ACT/EVENT; a STATE predicate uses *stative-complement-
-relation* instead (see complement-relation-for).")
+  "Relation linking a matrix predicate to its clausal complement (a PROPOSITION or
+a SITUATION wrapper). Auto-ensured (source ⊤, dest ⊤) if absent, since no standard
+case relation accepts a proposition/situation dest. Rebind to taste. This is the
+generic fallback; a STATE predicate with a PROPOSITION complement uses
+*stative-complement-relation* (`stat') instead (see complement-relation-for).")
 
 (defparameter *stative-complement-relation* 'cg::stat
   "Relation linking a STATE predicate to its clausal-complement proposition:
@@ -394,6 +420,21 @@ participle, else NIL (active is the cgraph default)."
   (let ((verb (clause-verb-node node)))
     (when (and verb (member 'pa::passive (pa::fe verb))) :passive)))
 
+(defun clause-complement-form (node)
+  "Semantic form of a clausal complement NODE, for choosing its wrapper concept
+type (see complement-type-for): :situation for an INFINITIVAL complement (INF-S,
+an unrealized event -- \"to go\"), :proposition for a THAT-clause (THAT-S, a
+statement), or NIL when NODE isn't a recognizable complement clause (e.g. the
+matrix clause). The INF-S/THAT-S feature sits on the embedded S under a COMP-NP,
+so descend to it (or use NODE itself if it already is the COMP-S)."
+  (let* ((s     (if (member 'pa::comp-s (pa::fe node))
+                    node
+                    (ignore-errors (pa::daughter 'pa::s node))))
+         (feats (and s (pa::fe s))))
+    (cond ((member 'pa::inf-s  feats) :situation)
+          ((member 'pa::that-s feats) :proposition)
+          (t nil))))
+
 (defun clause->ir (node seen)
   "Convert a predicate-bearing NODE into a clause IR."
   (let ((spec (cadr (pa::getc 'pa::spec node))))
@@ -403,6 +444,7 @@ participle, else NIL (active is the cgraph default)."
           :tense  (spec-tense spec)
           :aspect (spec-aspect spec)
           :voice  (clause-voice node)
+          :clause-type (clause-complement-form node)
           :node   node
           :cases  (loop for (cname filler gfunc) in (reverse (pa::getc 'pa::cases node))
                         collect (list :role cname :gfunc gfunc
@@ -502,7 +544,7 @@ relation instead of the case's entity-typed relation."
              (filler    (getf case :filler))
              (clausal   (eq (getf filler :kind) :clause))
              (rel-label (if clausal
-                            (complement-relation-for pred-concept)
+                            (complement-relation-for pred-concept filler)
                             (case-relation-for pred-concept role))))
         (when rel-label
           (let* ((relation  (cg::make-relation rel-label))
@@ -561,8 +603,9 @@ concept if present (coreference)."
   "Emit a filler IR; return its concept (or NIL for fillers we don't realize as
 concepts, e.g. an unbound trace)."
   (case (getf filler :kind)
-    ;; A clausal complement is embedded as a proposition context concept.
-    (:clause  (emit-clause-as-proposition filler))
+    ;; A clausal complement is embedded as a context concept -- a PROPOSITION
+    ;; (that-clause) or a SITUATION (infinitival), per its :clause-type.
+    (:clause  (emit-clause-as-complement filler))
     (:query   (query-concept (getf filler :node) (getf filler :type-hint)))
     (:named   (named-concept (getf filler :type-hint) (getf filler :name)
                              (getf filler :node)))
@@ -604,17 +647,19 @@ modifier never aborts the extraction."
               lemma rel-label
               (cg::label (cg::concept-type mod-concept)) (cg::label dest-type)))))
 
-(defun emit-clause-as-proposition (ir)
-  "Embed clause IR as a graph-referent concept [PROPOSITION: <inner graph>].
-The inner graph is built in a CHILD context (mirroring cgraph's own
-read-graph-referent-concept), so any coreference from inside back out to an
-enclosing concept must cross the context boundary (handled in emit-trace)."
+(defun emit-clause-as-complement (ir)
+  "Embed clause IR as a graph-referent concept -- [PROPOSITION: <inner graph>] for
+a that-clause, [SITUATION: <inner graph>] for an infinitival, per IR's
+:clause-type (see complement-type-for). The inner graph is built in a CHILD
+context (mirroring cgraph's own read-graph-referent-concept), so any coreference
+from inside back out to an enclosing concept must cross the context boundary
+(handled in emit-trace)."
   (let* ((cg::*context*          (cg::make-context cg::*context*))
          (cg::*concepts-in-graph* (list))
          (pred-concept (emit-clause ir))
          (graph        (cg::make-cgraph pred-concept cg::*context*))
          (referent     (cg::make-referent graph nil)))
-    (cg::make-concept (cg::get-concept-type *clausal-complement-type*) referent)))
+    (cg::make-concept (cg::get-concept-type (complement-type-for ir)) referent)))
 
 (defun emit-trace (filler required-type)
   "Realize a trace (control/raising gap) as coreference with its antecedent.
@@ -652,14 +697,16 @@ defining occurrence) on first use."
         label)))
 
 (defun ensure-complement-relation ()
-  "Make sure *clausal-complement-relation* exists (source ⊤, dest the
-complement type), creating it if the catalog lacks it. Returns the label."
+  "Make sure *clausal-complement-relation* exists, creating it if the catalog
+lacks it. Source ⊤, dest ⊤ -- dest is the top type (not proposition) so the one
+generic relation accepts BOTH complement wrappers, a PROPOSITION (that-clause)
+and a SITUATION (infinitival). Returns the label."
   (let ((label *clausal-complement-relation*))
     (unless (ignore-errors (cg::get-relation-type label))
       (cg::make-relation-type label
                               :source-types (list cg::*concept-type-top*)
-                              :dest-type    (cg::get-concept-type *clausal-complement-type*)
-                              :description  "clausal/propositional complement (cg-from-parse)"))
+                              :dest-type    cg::*concept-type-top*
+                              :description  "clausal complement: proposition/situation (cg-from-parse)"))
     label))
 
 (defun ir->cgraph (ir)

@@ -4,8 +4,10 @@
 ;;; `seem' is a raising verb: it takes ONLY the clausal complement (no agent of
 ;;; its own), and the surface subject "the boy" is semantically the agent of the
 ;;; embedded "go". PARSIFAL resolves this at the case level, so it falls out of
-;;; the clausal-complement (proposition) machinery with no new code:
-;;;   [SEEM]->(prop)->[PROPOSITION:[GO]->(agnt)->[BOY: #]].
+;;; the clausal-complement machinery with no new code. The complement is an
+;;; INFINITIVAL ("to go"), so it wraps as a SITUATION (an event), not a
+;;; PROPOSITION -- see #7 / complement-type-for:
+;;;   [SEEM]->(prop)->[SITUATION:[GO]->(agnt)->[BOY: #]].
 ;;; (Contrast control "persuade", where the controller IS a matrix argument.)
 ;;;
 ;;;   sbcl --non-interactive --disable-debugger \
@@ -38,12 +40,12 @@
               (text  (ignore-errors (cg::format-cgraph graph)))
               (up    (and (stringp text) (string-upcase text)))
               (pass  (and graph up
-                          (search "SEEM" up) (search "PROPOSITION" up)
+                          (search "SEEM" up) (search "SITUATION" up)
                           (search "GO"  up)  (search "AGNT" up)
                           (search "BOY" up)
-                          ;; the boy is the agent of GO inside the proposition,
+                          ;; the boy is the agent of GO inside the situation,
                           ;; not a direct argument of SEEM
-                          (search "PROPOSITION:[GO" (remove #\Space up)))))
+                          (search "SITUATION:[GO" (remove #\Space up)))))
          (when verbose (format t "~&sentence: ~a~%graph:~%~a~%" sentence text))
          (format t "~&extract-raising-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
          pass)))))

@@ -23,11 +23,14 @@
 > NOT the [PRED]->(rel) case path -- emit it like an adjective/mod on the
 > possessed noun ([DOG]<-(poss)<-[MAN], or [MAN: #]->(poss)->[DOG]).
 >
-> NEXT UP: #7 (PROPOSITION vs SITUATION by complement type). With genitives, PP
-> adjuncts, adverbs, and apposition all parser-blocked, anaphora deferred, and #6
-> now DONE, the remaining actionable ontology/representation work is #7 (choose
-> the complement wrapper type by inf-s vs that-s) and #8 (`*x/`?x formatter
-> cosmetic). #7 is the more substantive.
+> NEXT UP: #8 (`*x/`?x formatter cosmetic, cgraph-side) is the only remaining
+> actionable item -- and it's cosmetic and needs cgraph formatter cooperation.
+> Genitives, PP adjuncts, adverbs, and apposition are all parser-blocked (need
+> PARSIFAL grammar/lexicon work); anaphora is deferred; #6 and #7 are now DONE.
+> So the substantive extractor backlog is essentially cleared: the next real
+> frontier is unblocking a PARSER-side item (genitives is the most tractable --
+> add rules to attach `'s and consume a poss-np as a specifier) rather than more
+> extractor work. Revisit scope with the user.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
 priority order. Current state (2026-06-25): transitive clauses, control
@@ -142,10 +145,25 @@ Still open (folds into #2): a STATE verb's non-clausal object (e.g. "the man
 knows the boy", hanim NEUT) would still hit `obj' (ACT-only) -- untested, no
 test verb exercises it; a stative NEUT->? mapping is future work if one arises.
 
-## 7. PROPOSITION vs SITUATION for complements
-Always `proposition` now. An infinitival "to go" is arguably a SITUATION (an
-event); a that-clause a PROPOSITION (a statement). Could choose by complement
-type (inf-s vs that-s, available in the parse).
+## 7. PROPOSITION vs SITUATION for complements  — DONE
+The complement wrapper type is now chosen from the clause FORM instead of always
+being `proposition': a THAT-clause (THAT-S) is a statement -> [PROPOSITION: ...];
+an INFINITIVAL (INF-S) is an event -> [SITUATION: ...]. clause-complement-form
+reads the INF-S/THAT-S feature (it sits on the embedded S under the COMP-NP) into
+the IR's :clause-type; complement-type-for maps it to *situation-complement-type*
+(situation) vs *clausal-complement-type* (proposition), falling back to
+proposition if the catalog lacks a graph-compatible `situation'. So:
+  "the man knows that the boy sees the dog ." -> ...(stat)->[PROPOSITION:[SEE]...]
+  "the boy wants to go ."       -> [WANT]-(agnt)->[BOY: #] (prop)->[SITUATION:[GO]...]
+  "the boy seems to go ."       -> [SEEM]->(prop)->[SITUATION:[GO]->(agnt)->[BOY: #]]
+  "the boy persuaded the girl to go ." -> ...(prop)->[SITUATION:[GO]...]
+Relation interaction: the generic invented `prop' relation was widened to dest ⊤
+(source ⊤, dest ⊤) so ONE relation links a predicate to either wrapper; the
+stative `stat' (dest PROPOSITION) is now guarded to PROPOSITION complements only
+(complement-relation-for takes the filler and skips `stat' for a :situation, so a
+stative verb + infinitival wouldn't mis-type). New test contrasts the two forms
+(test/extract-complement-headless.lisp); raising/coref/driver tests updated from
+PROPOSITION to SITUATION (they use infinitival complements).
 
 ## 8. Coreference rendering `*x` vs `?x` (cosmetic)
 The formatter auto-manages `*x` variables (set/unset during its own pass), so a
