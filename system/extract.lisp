@@ -38,8 +38,11 @@
 ;;;                   :determiner :definite/:indefinite/NIL
 ;;;                   :quantifier :universal/:existential/NIL
 ;;;                   :number :singular/:plural :count N/NIL :adjs (ADJ..)
-;;;                   :mods (CLAUSE-IR..))       ; an NP; definite -> [X: #],
+;;;                   :poss FILLER-IR/NIL :mods (CLAUSE-IR..))
+;;;                                              ; an NP; definite -> [X: #],
 ;;;                                              ; plural -> [X: {*}]; :adjs = adjectives,
+;;;                                              ; :poss = genitive possessor (a nested
+;;;                                              ; filler IR) -> [POSSESSOR]->(poss)->[X];
 ;;;                                              ; :mods = relative clauses
 ;;;   (:kind :trace   :binding PA-NODE :words (W..)) ; a bound trace (coref)
 ;;;   (:kind :backref :lemma LEMMA)               ; structural cycle, not recursed
@@ -140,6 +143,14 @@ lacks a graph-compatible `situation'.")
 (attr: ENTITY -> ATTRIBUTE). Adjectives outside the ATTRIBUTE branch (e.g. an
 age word) won't fit and are skipped with a warning; with *on-missing-type*
 :create an unknown adjective is created under ATTRIBUTE so it fits.")
+
+(defparameter *possessive-relation* 'cg::poss
+  "Relation linking a genitive possessor to the possessed noun:
+[POSSESSOR]->(poss)->[POSSESSED] (poss: ANIMATE -> ENTITY). Unlike an adjective
+(where the noun is the SOURCE), the POSSESSOR is the source and the possessed head
+noun the dest -- so \"the man's dog\" is [MAN: #]->(poss)->[DOG: #], rendered
+[DOG: #]<-(poss)<-[MAN: #]. A possessor whose type isn't ANIMATE is skipped with a
+warning (like an out-of-branch adjective).")
 
 (defparameter *clausal-complement-relation* 'cg::prop
   "Relation linking a matrix predicate to its clausal complement (a PROPOSITION or
@@ -246,6 +257,7 @@ recursion path, used to break structural cycles (as ctree1 does)."
               :number (np-number filler)
               :count  (np-count filler)
               :adjs  (adjective-lemmas filler)
+              :poss  (np-possessor-ir filler seen)
               :mods  (clausal-mods filler seen)))))
     (t
      (list :kind :entity :node filler
@@ -256,6 +268,7 @@ recursion path, used to break structural cycles (as ctree1 does)."
            :number (np-number filler)
            :count  (np-count filler)
            :adjs  (adjective-lemmas filler)
+           :poss  (np-possessor-ir filler seen)
            :mods  (clausal-mods filler seen)))))
 
 (defparameter *wh-type*
@@ -310,6 +323,23 @@ entity), or NIL."
   (let* ((words (ignore-errors (pa::node-words node)))
          (q     (and words (ignore-errors (get (first words) 'pa::quant)))))
     (when (numberp q) q)))
+
+(defun np-possessor (node)
+  "The possessor NP of a genitive NP NODE, or NIL. PARSIFAL parses a genitive
+(\"the man's dog\") by making the possessor a POSS-DET determiner of the head NP:
+NODE's `det' daughter is a poss-det whose `np' daughter is the possessor poss-np
+(\"the man's\" / \"mitch's\" / \"my\"). See parsifal *genitive-rules*."
+  (let ((det (ignore-errors (pa::daughter 'pa::det node))))
+    (and det
+         (member 'pa::poss-det (ignore-errors (pa::fe det)))
+         (ignore-errors (pa::daughter 'pa::np det)))))
+
+(defun np-possessor-ir (node seen)
+  "Filler IR for NODE's genitive possessor, or NIL. Recurses through filler->ir,
+so the possessor gets full treatment -- a common noun (\"the man's\" -> :entity),
+a proper name (\"mitch's\" -> :named), or a pronoun."
+  (let ((poss (np-possessor node)))
+    (and poss (filler->ir poss seen))))
 
 (defparameter *proper-noun-type* 'cg::person
   "Default concept-type for a proper name when its markers don't pin one down.")
@@ -621,6 +651,10 @@ concepts, e.g. an unbound trace)."
                 ;; Adjective modifiers: [NOUN]->(attr)->[ADJ].
                 (dolist (adj (getf filler :adjs))
                   (emit-modifier concept *adjective-relation* adj))
+                ;; Genitive possessor: [POSSESSOR]->(poss)->[NOUN] (possessor
+                ;; is the ANIMATE source, this noun the dest).
+                (let ((poss (getf filler :poss)))
+                  (when poss (emit-possessor concept poss)))
                 ;; Relative clauses: assert each as a predicate in THIS context.
                 ;; The head's concept is already registered, so the relative gap
                 ;; (a trace bound back to the head) shares it -- one node, the
@@ -646,6 +680,34 @@ modifier never aborts the extraction."
         (warn "cg-from-parse: modifier [~a] not linked via (~a): type ~a doesn't fit dest ~a"
               lemma rel-label
               (cg::label (cg::concept-type mod-concept)) (cg::label dest-type)))))
+
+(defun emit-possessor (possessed-concept poss-ir)
+  "Emit [POSSESSOR]->(poss)->[POSSESSED-CONCEPT] for a genitive: the possessor
+(POSS-IR, already a filler IR) is the ANIMATE source, the possessed head noun the
+ENTITY dest. Reverse of emit-modifier (there the noun is the source). Skips with a
+warning when the possessor's type doesn't fit `poss''s source, so a non-animate
+possessor never aborts the extraction."
+  (let* ((relation   (cg::make-relation *possessive-relation*))
+         (src-type   (car (cg::source-types (cg::relation-type relation))))
+         (poss-concept (emit-filler poss-ir src-type)))
+    (when poss-concept
+      (if (arc-source-ok-p poss-concept relation)
+          (progn (cg::add-arc-into-relation poss-concept relation)
+                 (cg::set-arc-from-relation relation possessed-concept))
+          (warn "cg-from-parse: possessor [~a] not linked via (~a): type ~a doesn't fit source ~a"
+                (or (getf poss-ir :lemma) (getf poss-ir :name)) *possessive-relation*
+                (cg::label (cg::concept-type poss-concept))
+                (and src-type (cg::label src-type)))))))
+
+(defun arc-source-ok-p (concept relation)
+  "Would CONCEPT satisfy one of RELATION's in-arc (source) types? Mirrors
+arc-dest-ok-p but for the source side (add-arc-into-relation)."
+  (let ((ct (cg::concept-type concept))
+        (sts (cg::source-types (cg::relation-type relation))))
+    (or (typep ct 'string)
+        (some (lambda (st) (or (cg::supertype-p ct st)
+                               (equal ct (cg::label st))))
+              sts))))
 
 (defun emit-clause-as-complement (ir)
   "Embed clause IR as a graph-referent concept -- [PROPOSITION: <inner graph>] for

@@ -26,6 +26,7 @@
     ("ditransitive" . extract-ditransitive-headless-test)
     ("relative"     . extract-relative-headless-test)
     ("modifier"     . extract-modifier-headless-test)
+    ("genitive"     . extract-genitive-headless-test)
     ("passive"      . extract-passive-headless-test)
     ("determiner"   . extract-determiner-headless-test)
     ("quantifier"   . extract-quantifier-headless-test)

@@ -1,36 +1,43 @@
 # cg-from-parse — next steps
 
-> GENITIVES — BLOCKED on the parser (probed 2026-07-01, same class as apposition
-> #11). Every genitive form FAILS to parse (NIL) under the full grammar, while
-> the matching controls parse:
->   "the man 's dog sees the woman ."  -> NIL   (common-noun genitive, split `'s)
->   "the man's dog sees the woman ."   -> NIL   (joined)
->   "mitch 's dog sees the woman ."    -> NIL   (proper-name genitive)
->   "my dog sees the woman ."          -> NIL   (possessive pronoun)
->   "the dog sees the woman ." / "mitch sees the dog ." -> OK  (controls)
-> The pieces exist but don't compose into a possessor+head NP:
->   - `'s is in the dict as (df \'s feats (poss)); the genitive `genlc' case
->     branch in case-frame.lisp is DORMANT (poss-pg-cases is a stubbed NIL no-op).
->   - The only `poss attachment rule is END-OF-NAME in the BUILD-NAME (proper-name)
->     layer: "If 1st is poss then attach 1st to c as poss; label c poss-np."
->     PRONOUN labels a poss-pronoun (my/your/his) as poss-np. BUT no rule ever
->     CONSUMES a poss-np as the specifier of a following head NP, so even "my dog"
->     stalls; and common-noun `'s has no attachment rule outside BUILD-NAME.
-> To unblock (PARSIFAL side): add grammar rules that (a) attach `'s to a
-> common-noun NP -> poss-np, and (b) take a poss-np as the leading specifier of
-> the next NP (like a det), leaving the possessor node reachable. THEN the
-> extractor side is small: `poss source is ANIMATE (not ACT), so it's noun->noun,
-> NOT the [PRED]->(rel) case path -- emit it like an adjective/mod on the
-> possessed noun ([DOG]<-(poss)<-[MAN], or [MAN: #]->(poss)->[DOG]).
+> GENITIVES — DONE (2026-07-01), the first PARSIFAL-side (grammar) feature.
+> Common-noun, proper-name, AND possessive-pronoun genitives all parse and
+> extract:
+>   "the man 's dog sees the woman ." -> [SEE]-(agnt)->[DOG:#]<-(poss)<-[MAN:#]
+>                                                   (obj)->[WOMAN:#].
+>   "mitch 's dog sees the woman ."   -> [DOG:#]<-(poss)<-[PERSON:Mitch]
+>   "my dog sees the woman ."         -> [DOG:#]<-(poss)<-[PERSON:I]  (:create; I not in test-types)
+> PARSER side (parsifal test/integration/clause-grammar.lisp *genitive-rules*,
+> both rules verbatim from Marcus gram3.l, added to *full-grammar*):
+>   - POSS-NP (IN NP-COMPLETE, [=poss]): attach the clitic `'s to a just-completed
+>     NP, re-label it poss-np, then `Run np-done next'. The "Run np-done next" is
+>     REQUIRED (Marcus's bare rule stalled here): without it the parser resumes
+>     normal selection and STARTNP (priority 10) grabs the head noun before the
+>     poss-np drops to CPOOL. Forcing np-done drops the poss-np so POSSESSIVE-DET
+>     (priority 5) fires first. (Mirrors END-OF-NAME, which already did this for
+>     names.)
+>   - POSSESSIVE-DET (AS, priority 5, IN CPOOL, [=poss-np]): wrap the poss-np in a
+>     fresh POSS-DET det node (ngstart, def); STARTNP/DETERMINER then make it the
+>     head noun's determiner. So the head NP is definite and det->np is the
+>     possessor. Names (END-OF-NAME) and poss-pronouns (PRONOUN rule) already
+>     produced poss-nps, so they got genitives for free.
+> EXTRACTOR side (system/extract.lisp): np-possessor reads the head NP's poss-det
+> -> possessor NP; np-possessor-ir recurses filler->ir (so the possessor is a full
+> entity/named/pronoun); the entity IR gains :poss; emit-possessor emits
+> [POSSESSOR]->(poss)->[NOUN] with the possessor as the ANIMATE *source* (reverse
+> of emit-modifier, since `poss' is ANIMATE->ENTITY) -- arc-source-ok-p guards a
+> non-animate possessor. *possessive-relation* = poss. Tests:
+> parsifal/test/integration/gram1-genitive-test.lisp (parse structure, 13 asserts)
+> and test/extract-genitive-headless.lisp (extraction, strict :error). No
+> regressions: parsifal full-grammar + coverage(47) + NP tests green; 19/19
+> cg-from-parse headless.
 >
-> NEXT UP: the extractor backlog is now CLEARED -- #6, #7, #8 all DONE. Every
-> remaining numbered item is either parser-blocked (genitives, PP adjuncts,
-> adverbs, apposition #11 -- all need PARSIFAL grammar/lexicon work) or deferred
-> (anaphora #12). So the next real frontier is a SHIFT IN KIND: PARSIFAL-side
-> grammar work. Genitives is the most tractable entry (add rules to attach `'s to
-> a common-noun NP and consume a poss-np as an NP specifier; see the GENITIVES
-> note above). This is a bigger, different task than the extractor tuning done so
-> far -- revisit scope with the user before starting.
+> NEXT UP: with genitives done, the parser-side toolkit is proven. The other
+> parser-blocked items are now unblockable the same way: APPOSITION (#11, "the
+> dog, Spot") and PP ADJUNCTS / ADVERBS (#5 -- need a verb that licenses the
+> adjunct OR surface-tree walking + lexicon adds). Anaphora (#12) is still
+> deferred (fuzzy, cross-sentence). Pick with the user; apposition is the closest
+> analogue to what was just done.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
 priority order. Current state (2026-06-25): transitive clauses, control
@@ -116,8 +123,11 @@ so a verb that LICENSES a manner/loc case would map, but none in test-types does
 To unblock: add manner adverbs to the lexicon AND grammar rules that attach
 unlicensed adverbial adjuncts (PARSIFAL side), then read them like adjectives.
 
-Still open under modifiers: genitives/possessives (poss) and
-adjective-class-specific relations.
+GENITIVES/POSSESSIVES (poss) — DONE (2026-07-01, parser + extractor). "the man's
+dog" -> [DOG:#]<-(poss)<-[MAN:#]; also proper-name and pronoun possessors. See the
+GENITIVES banner at the top of this file for the full write-up (parsifal
+*genitive-rules* POSS-NP + POSSESSIVE-DET; extractor np-possessor/emit-possessor).
+Still open under modifiers: adjective-class-specific relations.
 
 ## 6. Reconsider the `prop` relation  — DONE (option b: pick by verb class)
 The complement relation (and the subject role) are now chosen by the PREDICATE's
