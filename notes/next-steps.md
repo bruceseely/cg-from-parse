@@ -23,14 +23,14 @@
 > NOT the [PRED]->(rel) case path -- emit it like an adjective/mod on the
 > possessed noun ([DOG]<-(poss)<-[MAN], or [MAN: #]->(poss)->[DOG]).
 >
-> NEXT UP: #8 (`*x/`?x formatter cosmetic, cgraph-side) is the only remaining
-> actionable item -- and it's cosmetic and needs cgraph formatter cooperation.
-> Genitives, PP adjuncts, adverbs, and apposition are all parser-blocked (need
-> PARSIFAL grammar/lexicon work); anaphora is deferred; #6 and #7 are now DONE.
-> So the substantive extractor backlog is essentially cleared: the next real
-> frontier is unblocking a PARSER-side item (genitives is the most tractable --
-> add rules to attach `'s and consume a poss-np as a specifier) rather than more
-> extractor work. Revisit scope with the user.
+> NEXT UP: the extractor backlog is now CLEARED -- #6, #7, #8 all DONE. Every
+> remaining numbered item is either parser-blocked (genitives, PP adjuncts,
+> adverbs, apposition #11 -- all need PARSIFAL grammar/lexicon work) or deferred
+> (anaphora #12). So the next real frontier is a SHIFT IN KIND: PARSIFAL-side
+> grammar work. Genitives is the most tractable entry (add rules to attach `'s to
+> a common-noun NP and consume a poss-np as an NP specifier; see the GENITIVES
+> note above). This is a bigger, different task than the extractor tuning done so
+> far -- revisit scope with the user before starting.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
 priority order. Current state (2026-06-25): transitive clauses, control
@@ -165,12 +165,33 @@ stative verb + infinitival wouldn't mis-type). New test contrasts the two forms
 (test/extract-complement-headless.lisp); raising/coref/driver tests updated from
 PROPOSITION to SITUATION (they use infinitival complements).
 
-## 8. Coreference rendering `*x` vs `?x` (cosmetic)
-The formatter auto-manages `*x` variables (set/unset during its own pass), so a
-manually-set defining `*x` gets wiped; both coref occurrences render `?x1`
-(cgraph's legacy ?x/?x style). The coref LINK is correct in the object graph.
-If a proper `*x` defining marker is wanted in the text, it needs formatter
-cooperation (cgraph side).
+## 8. Coreference rendering `*x` vs `?x` (cosmetic)  — DONE (cgraph side + a leak fix)
+Cross-context coreference now renders standard CGIF: the DEFINING occurrence is
+`*x1` (the anchor) and the BOUND occurrence `?x1`, e.g.
+  "the boy persuaded the girl to go ." ->
+  [PERSUADE]-(agnt)->[BOY: #] (prop)->[SITUATION:[GO]->(agnt)->[GIRL:?x1]]
+            (rcpt)->[GIRL:#*x1].
+(previously both were `?x1`). Changes:
+- cgraph system/core/coreference.lisp `coref-text': a defining-label concept
+  renders `*label' WHEN it actually has a coreference partner ((coreference c) is
+  non-nil); a LONE defining label with nothing referencing it stays `?label'
+  (legacy) so `[cat: ?c]' round-trips and no dangling *anchor is emitted -- this
+  keeps cgraph's own test-coref-formatting (lone ?j/?c) green with no test edits.
+- cgraph system/core/concept.lisp `variable-text': suppress the `*var' when the
+  concept ALSO carries a coref defining-label (coref-text owns the marker), fixing
+  a pre-existing double-render ("*j?j" -> "?j"). Pure re-entrancy `*x' variables
+  (no coref label) are unchanged.
+- cg-from-parse system/extract.lisp `ir->cgraph': now calls
+  cg::initialize-coreferences + cg::initialize-variables at the start of each
+  extraction. Those caches are process-global in cgraph, so a label like X1 from a
+  prior extraction leaked in and made a new X1 resolve to the STALE concept. The
+  old `?x'/`?x' rendering masked this (both sides printed the same either way); the
+  #8 `*x'/`?x' split exposed it -- surfaced as a cross-test failure in the headless
+  suite. This is a real correctness fix, not just cosmetic.
+extract-coref-headless.lisp updated to assert one defining `*x1' + one bound
+`?x1'. Verified cgraph's test-coref-formatting/basic/nested still pass; all 18
+cg-from-parse headless tests pass. NB the query-variable `*x' (wh-questions, the
+separate *variables* system) is unaffected -- it never had a coref label.
 
 ## 9. Other sentence types  — passives, wh-questions, yes-no questions, imperatives, raising DONE
 YES-NO QUESTIONS: same propositional content as the declarative (only the parse

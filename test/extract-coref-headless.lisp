@@ -48,9 +48,13 @@
               ;; of GO corefers with the matrix
               ;; object (the girl) ACROSS that context boundary, so it shows as
               ;; two occurrences carrying the SAME coref label (cgraph forbids a
-              ;; shared node across contexts).
+              ;; shared node across contexts). In standard-CGIF rendering (#8) the
+              ;; matrix occurrence is the DEFINING anchor (*x1) and the embedded
+              ;; occurrence is the BOUND reference (?x1).
+              (up-flat (and up (remove #\Space up)))
               (girl-nodes (and up (count-substr "[GIRL" up)))
-              (coref-marks (and up (count-substr "?X" up)))
+              (def-marks   (and up-flat (count-substr "*X1" up-flat))) ; defining anchor
+              (bound-marks (and up-flat (count-substr "?X1" up-flat))) ; bound reference
               (tense (and graph (cg::concept-tense (cg::head graph)))) ; "persuaded" = past
               (pass (and graph up
                          (search "PERSUADE" up)   (search "BOY" up)
@@ -58,14 +62,15 @@
                          (search "AGNT" up)       (search "RCPT" up)
                          (search "SITUATION" up)          ; infinitival complement embedded
                          (eql girl-nodes 2)               ; two coref occurrences
-                         (eql coref-marks 2)              ; both carry the coref label
+                         (eql def-marks 1)                ; one defining anchor *x1
+                         (eql bound-marks 1)              ; one bound reference ?x1
                          (eq tense :past))))              ; matrix tense
          (when verbose
            (format t "~&sentence:   ~a~%" sentence)
            (format t "~&IR:         ~s~%" ir)
            (format t "~&graph:~%~a~%" text)
-           (format t "~&girl nodes: ~a / coref-labelled: ~a (2+2 = coreferent across context)~%"
-                   girl-nodes coref-marks)
+           (format t "~&girl nodes: ~a / defining *x1: ~a, bound ?x1: ~a (coreferent across context)~%"
+                   girl-nodes def-marks bound-marks)
            (format t "~&matrix tense: ~s~%" tense))
          (format t "~&extract-coref-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
          pass)))))

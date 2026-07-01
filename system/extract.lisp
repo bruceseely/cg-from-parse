@@ -711,6 +711,12 @@ and a SITUATION (infinitival). Returns the label."
 
 (defun ir->cgraph (ir)
   "Emit a complete cgraph graph from clause IR, in a fresh child context."
+  ;; Start each extraction with clean cgraph coreference + variable caches:
+  ;; both are process-global in cgraph (*coref-labels* / *variables*), so a label
+  ;; like X1 registered by a previous extraction would otherwise leak in and make
+  ;; a new X1 resolve to the stale concept -- corrupting the *x/?x coref split.
+  (cg::initialize-coreferences)
+  (cg::initialize-variables)
   (let ((cg::*context*     (cg::make-context cg::*context*))
         (*node->concept*   (make-hash-table :test 'equal))
         (*node->corefvar*  (make-hash-table :test 'equal))
