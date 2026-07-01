@@ -1,10 +1,33 @@
 # cg-from-parse — next steps
 
-> NEXT UP (paused 2026-06-27): **genitives / possessives** ("the man's dog" ->
-> [DOG]<-(poss)<-[MAN], or [MAN: #]->(poss)->[DOG]). First PROBE whether genitives
-> parse and where the possessor attaches (genitive `'s`, a poss case, or surface).
-> Note: `poss` source is ANIMATE (not ACT), so it's noun->noun, NOT the
-> [PRED]->(rel) path -- emit it like an adjective/mod on the possessed noun.
+> GENITIVES — BLOCKED on the parser (probed 2026-07-01, same class as apposition
+> #11). Every genitive form FAILS to parse (NIL) under the full grammar, while
+> the matching controls parse:
+>   "the man 's dog sees the woman ."  -> NIL   (common-noun genitive, split `'s)
+>   "the man's dog sees the woman ."   -> NIL   (joined)
+>   "mitch 's dog sees the woman ."    -> NIL   (proper-name genitive)
+>   "my dog sees the woman ."          -> NIL   (possessive pronoun)
+>   "the dog sees the woman ." / "mitch sees the dog ." -> OK  (controls)
+> The pieces exist but don't compose into a possessor+head NP:
+>   - `'s is in the dict as (df \'s feats (poss)); the genitive `genlc' case
+>     branch in case-frame.lisp is DORMANT (poss-pg-cases is a stubbed NIL no-op).
+>   - The only `poss attachment rule is END-OF-NAME in the BUILD-NAME (proper-name)
+>     layer: "If 1st is poss then attach 1st to c as poss; label c poss-np."
+>     PRONOUN labels a poss-pronoun (my/your/his) as poss-np. BUT no rule ever
+>     CONSUMES a poss-np as the specifier of a following head NP, so even "my dog"
+>     stalls; and common-noun `'s has no attachment rule outside BUILD-NAME.
+> To unblock (PARSIFAL side): add grammar rules that (a) attach `'s to a
+> common-noun NP -> poss-np, and (b) take a poss-np as the leading specifier of
+> the next NP (like a det), leaving the possessor node reachable. THEN the
+> extractor side is small: `poss source is ANIMATE (not ACT), so it's noun->noun,
+> NOT the [PRED]->(rel) case path -- emit it like an adjective/mod on the
+> possessed noun ([DOG]<-(poss)<-[MAN], or [MAN: #]->(poss)->[DOG]).
+>
+> NEXT UP: pick an unblocked item. With genitives, PP adjuncts, adverbs, and
+> apposition all parser-blocked, and anaphora deferred, the remaining actionable
+> work is the ontology/representation items: #6 (principled `prop relation vs
+> reusing `stat), #7 (PROPOSITION vs SITUATION by complement type), #8 (`*x/`?x
+> formatter cosmetic). #6/#7 are the most substantive.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
 priority order. Current state (2026-06-25): transitive clauses, control
