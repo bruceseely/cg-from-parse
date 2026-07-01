@@ -78,6 +78,33 @@ created (see *on-missing-type*). All case relations require an ACT source.")
   "cgraph relation label for PARSIFAL thematic ROLE, or NIL if unmapped."
   (cdr (assoc role *case-role->relation*)))
 
+(defun predicate-stative-p (pred-concept)
+  "True when PRED-CONCEPT's type is a subtype of STATE -- i.e. the predicate is a
+state (know/believe), not an act/event. States take expr/stat where acts take
+agnt/prop. NIL if the catalog has no STATE type or the concept type is a bare
+string (an out-of-ontology lemma)."
+  (let ((state (ignore-errors (cg::get-concept-type 'cg::state)))
+        (ct    (cg::concept-type pred-concept)))
+    (and state (not (typep ct 'string)) (cg::supertype-p ct state))))
+
+(defun case-relation-for (pred-concept role)
+  "cgraph relation label for thematic ROLE given the PRED-CONCEPT. A stative
+predicate overrides some roles (agt->expr, see *stative-case-role->relation*);
+otherwise the default *case-role->relation* applies."
+  (or (and (predicate-stative-p pred-concept)
+           (cdr (assoc role *stative-case-role->relation*)))
+      (case-role->relation role)))
+
+(defun complement-relation-for (pred-concept)
+  "Relation to link PRED-CONCEPT to its clausal-complement PROPOSITION. A stative
+predicate uses `stat' ([STATE]->(stat)->[PROPOSITION], the ontology's canonical
+form) when the catalog defines it; otherwise the generic invented
+*clausal-complement-relation* (prop, ⊤->proposition)."
+  (or (and (predicate-stative-p pred-concept)
+           (ignore-errors (cg::get-relation-type *stative-complement-relation*))
+           *stative-complement-relation*)
+      *clausal-complement-relation*))
+
 (defparameter *clausal-complement-type* 'cg::proposition
   "Graph-compatible concept type that wraps an embedded clause as a context,
 i.e. [PROPOSITION: <inner graph>]. Must be a graph-compatible type.")
@@ -91,7 +118,24 @@ age word) won't fit and are skipped with a warning; with *on-missing-type*
 (defparameter *clausal-complement-relation* 'cg::prop
   "Relation linking a matrix predicate to its clausal-complement proposition.
 Auto-ensured (source ⊤, dest *clausal-complement-type*) if absent, since no
-standard case relation accepts a proposition dest. Rebind to taste.")
+standard case relation accepts a proposition dest. Rebind to taste. Used for a
+predicate that is an ACT/EVENT; a STATE predicate uses *stative-complement-
+relation* instead (see complement-relation-for).")
+
+(defparameter *stative-complement-relation* 'cg::stat
+  "Relation linking a STATE predicate to its clausal-complement proposition:
+[STATE]->(stat)->[PROPOSITION]. Preferred over the generic (invented) `prop'
+when the predicate's concept type is a subtype of STATE and the catalog defines
+`stat' -- this is the ontology's canonical form (cf. KNOW's canonical graph
+[KNOW]-(expr)->[ANIMATE] (stat)->[PROPOSITION]). Cognition/communication verbs
+that want their own relation would extend this by verb class.")
+
+(defparameter *stative-case-role->relation*
+  (list (cons 'pa::agt 'cg::expr))   ; a state's subject EXPERIENCES it
+  "Role->relation overrides used when the predicate is a STATE rather than an
+ACT. A stative predicate (know/believe) links its subject via `expr'
+(experiencer: [STATE]->(expr)->[ANIMATE]), not `agnt' (which requires an ACT
+source). Roles absent here fall back to *case-role->relation*.")
 
 ;;; ===========================================================================
 ;;; Reading layer:  PARSIFAL parse  ->  IR
@@ -458,8 +502,8 @@ relation instead of the case's entity-typed relation."
              (filler    (getf case :filler))
              (clausal   (eq (getf filler :kind) :clause))
              (rel-label (if clausal
-                            *clausal-complement-relation*
-                            (case-role->relation role))))
+                            (complement-relation-for pred-concept)
+                            (case-relation-for pred-concept role))))
         (when rel-label
           (let* ((relation  (cg::make-relation rel-label))
                  (dest-type (cg::dest-type (cg::relation-type relation)))

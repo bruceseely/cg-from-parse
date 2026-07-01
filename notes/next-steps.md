@@ -23,11 +23,11 @@
 > NOT the [PRED]->(rel) case path -- emit it like an adjective/mod on the
 > possessed noun ([DOG]<-(poss)<-[MAN], or [MAN: #]->(poss)->[DOG]).
 >
-> NEXT UP: pick an unblocked item. With genitives, PP adjuncts, adverbs, and
-> apposition all parser-blocked, and anaphora deferred, the remaining actionable
-> work is the ontology/representation items: #6 (principled `prop relation vs
-> reusing `stat), #7 (PROPOSITION vs SITUATION by complement type), #8 (`*x/`?x
-> formatter cosmetic). #6/#7 are the most substantive.
+> NEXT UP: #7 (PROPOSITION vs SITUATION by complement type). With genitives, PP
+> adjuncts, adverbs, and apposition all parser-blocked, anaphora deferred, and #6
+> now DONE, the remaining actionable ontology/representation work is #7 (choose
+> the complement wrapper type by inf-s vs that-s) and #8 (`*x/`?x formatter
+> cosmetic). #7 is the more substantive.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
 priority order. Current state (2026-06-25): transitive clauses, control
@@ -116,12 +116,31 @@ unlicensed adverbial adjuncts (PARSIFAL side), then read them like adjectives.
 Still open under modifiers: genitives/possessives (poss) and
 adjective-class-specific relations.
 
-## 6. Reconsider the `prop` relation
-`*clausal-complement-relation*` defaults to `prop`, auto-invented as
-⊤→proposition because no standard case relation accepts a proposition dest.
-Options: (a) add a principled relation to the ontology; (b) pick the relation by
-verb class — e.g. stative verbs (know/believe) could use the existing `stat`
-(state→proposition); cognition/communication verbs may want their own.
+## 6. Reconsider the `prop` relation  — DONE (option b: pick by verb class)
+The complement relation (and the subject role) are now chosen by the PREDICATE's
+semantic class instead of always using the invented `prop'. A STATE predicate
+(concept type ⊑ `state') links its clausal complement via the ontology's `stat'
+([STATE]->(stat)->[PROPOSITION]) and its subject via `expr' (experiencer,
+[STATE]->(expr)->[ANIMATE]) rather than the act-only `agnt'/`prop'. An ACT/EVENT
+predicate is unchanged (`agnt' + the invented `prop' fallback). So `know' (the
+one STATE verb in BOTH the PARSIFAL dict -- markers (state), via `(jlike know
+believe)' -- AND cgraph test-types, `know :supertypes (state)') now yields its
+canonical graph:
+  "the man knows that the boy sees the dog ." ->
+  [KNOW]-(expr)->[MAN: #] (stat)->[PROPOSITION:[SEE]-(agnt)->[BOY: #]
+                                                     (obj)->[DOG: #]].
+Before this it errored to NIL: [KNOW]-(agnt)-> fails because `agnt' needs an ACT
+source and KNOW is a STATE -- the bug that motivated #6. Implementation
+(system/extract.lisp): `predicate-stative-p' (concept type ⊑ state),
+`*stative-case-role->relation*' (agt->expr), `*stative-complement-relation*'
+(stat), `case-relation-for'/`complement-relation-for' consulted in `emit-clause';
+both fall back gracefully if the catalog lacks `state'/`stat'. Out-of-ontology
+cognition verbs (believe/think, created under ACT via :create) still get
+agnt/prop -- fine, since the port's lexicon only marks `know' as an in-ontology
+state. See test/extract-stative-headless.lisp.
+Still open (folds into #2): a STATE verb's non-clausal object (e.g. "the man
+knows the boy", hanim NEUT) would still hit `obj' (ACT-only) -- untested, no
+test verb exercises it; a stative NEUT->? mapping is future work if one arises.
 
 ## 7. PROPOSITION vs SITUATION for complements
 Always `proposition` now. An infinitival "to go" is arguably a SITUATION (an
