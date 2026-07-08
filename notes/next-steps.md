@@ -59,9 +59,19 @@
 > split *full-grammar* into *marcus-full-grammar* (verbatim ports) +
 > *grammar-extensions* (ours) with a `load-marcus-grammar' baseline entry point.
 >
-> NEXT UP: PP ADJUNCTS / ADVERBS (#5 -- needs a verb that licenses the adjunct OR
-> surface-tree walking + lexicon adds) is the main remaining parser-blocked item.
-> Anaphora (#12) stays deferred (fuzzy, cross-sentence). Pick with the user.
+> PP ADJUNCTS (locative) -- DONE (2026-07-07, extractor-only; see #5 below).
+> Turned out NOT parser-blocked: PARSIFAL attaches an unlicensed PP to the S node
+> as a surface `pp' daughter (gram5 PP-UNDER-S-1), so no grammar change was needed
+> -- the extractor just walks clause pp daughters and maps the preposition to a
+> relation (locatives -> loc). "the man sees the dog in the city ." ->
+> [SEE]-(agnt)->[MAN:#] (obj)->[DOG:#] (loc)->[CITY:#]. NOT in *grammar-extensions*
+> (no parser change) and NOT in parsifal EXTENSIONS.md.
+>
+> NEXT UP: remaining #5 pieces -- non-locative prepositions (with->inst, temporal
+> ->time) and ADVERBS (blocked on lexicon: manner adverbs quickly/slowly aren't
+> lexicalized; deictic here/now/there parse but get dropped by non-licensing
+> verbs, same as PP adjuncts were -- but the adverb path may need a grammar rule
+> to attach them). Anaphora (#12) stays deferred. Pick with the user.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
 priority order. Current state (2026-06-25): transitive clauses, control
@@ -130,12 +140,24 @@ See test/extract-modifier-headless.lisp. `*adjective-relation*` (default attr);
 adjectives outside the ATTRIBUTE branch are skipped with a warning (a smarter
 adjective-class -> relation map, e.g. age word -> `age' relation, is future work).
 
-PP ADJUNCTS are NOT extractable as-is: PARSIFAL DROPS a verb-unlicensed PP
-("the man sees the dog in the park") entirely -- absent from the case frame AND
-the surface tree (VP and NP daughters) -- while a licensed PP is already a case
-(give's to->dat). So no extra content to extract. A verb that licenses a loc/inst
-PP (e.g. "put", "change") would surface it as a case (loc/manr already mapped),
-but none is in test-types.
+PP ADJUNCTS (locative) — DONE (2026-07-07, extractor-only). The earlier claim
+here was WRONG: a verb-unlicensed PP is NOT dropped. PARSIFAL attaches it to the
+CLAUSE (the S node) as a surface `pp' daughter -- Marcus's own gram5 PP-UNDER-S-1
+rule does `attach 1st to c as pp' even when the PP fits no case slot. The earlier
+probe only checked VP and NP daughters and missed the S-level attachment. So this
+needed NO grammar change (not a *grammar-extensions* rule): purely an extractor
+gap. "the man sees the dog in the city ." ->
+  [SEE]-(agnt)->[MAN: #] (obj)->[DOG: #] (loc)->[CITY: #].
+EXTRACTOR (system/extract.lisp): clause-adjuncts walks the clause node's `pp'
+daughters (pa::daughters 'pp) -- a licensed PP fills a case and leaves NO clause
+pp daughter, so these are exactly the adjuncts; each -> {:prep :filler} on the
+clause IR's :adjuncts; emit-adjunct maps the preposition via *preposition->
+relation* (locatives in/on/at/near/... -> loc, ⊤->place) and emits
+[PRED]-(rel)->[OBJ], reusing arc-dest-ok-p so a bad object type is skipped with a
+warning. Test: test/extract-pp-adjunct-headless.lisp (strict :error; loc->[CITY],
+`city' is a place in test-types). 21/21 headless; parsifal untouched (56/56).
+STILL OPEN under #5: non-locative prepositions (with->inst/accm, temporal->time)
+and ADVERBS (see below -- those DO need lexicon + possibly grammar adds).
 
 ADVERBS are BLOCKED (same root cause as PP adjuncts), investigated 2026-06-27:
 manner adverbs (quickly/slowly) are NOT in the lexicon (dropped as unknown); and

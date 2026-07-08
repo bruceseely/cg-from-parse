@@ -25,7 +25,11 @@
 ;;;   (:kind :clause :pred LEMMA :spec SPEC-NODE-OR-NIL :node PA-NODE
 ;;;    :tense :past/:present/:future/NIL :aspect :perfect/NIL
 ;;;    :voice :passive/NIL :clause-type :proposition/:situation/NIL
-;;;    :cases (CASE ...))
+;;;    :cases (CASE ...) :adjuncts (ADJUNCT ...))
+;;;                                              ; :adjuncts = PP adjuncts, each
+;;;                                              ; (:prep WORD :filler FILLER-IR)
+;;;                                              ; -> [PRED]-(rel)->[OBJ] ("in the
+;;;                                              ; park" -> (loc)->[PLACE])
 ;;;   (:clause-type distinguishes a that-clause complement (:proposition) from an
 ;;;    infinitival (:situation); NIL for the matrix clause -- see complement-type-for.)
 ;;; A case (one filled thematic role):
@@ -101,6 +105,27 @@ otherwise the default *case-role->relation* applies."
   (or (and (predicate-stative-p pred-concept)
            (cdr (assoc role *stative-case-role->relation*)))
       (case-role->relation role)))
+
+(defparameter *preposition->relation*
+  (list (cons "IN"     'cg::loc) (cons "ON"      'cg::loc)
+        (cons "AT"     'cg::loc) (cons "INSIDE"  'cg::loc)
+        (cons "NEAR"   'cg::loc) (cons "BY"      'cg::loc)
+        (cons "UNDER"  'cg::loc) (cons "BEHIND"  'cg::loc)
+        (cons "OVER"   'cg::loc))
+  "Adjunct-preposition word -> cgraph relation. A PP adjunct is a PP the verb did
+NOT license as a case (\"the man sees the dog in the park\"); PARSIFAL attaches it
+to the clause, and we link its object off the predicate. Locative prepositions
+map to `loc' (⊤ -> place). An adjunct whose preposition isn't mapped here is
+skipped (with a warning), so an unknown preposition never aborts the extraction.
+(A richer map -- with->inst/accm, temporal prepositions->time, ... -- is future
+work; the licensed prepositional dative `to' is handled as a case, not here.)")
+
+(defun preposition->relation (prep-word)
+  "cgraph relation label for an adjunct PREP-WORD (\"in\"/\"on\"/... -> loc), else
+NIL. Matched by name so a :parsifal or :cl word symbol both resolve."
+  (and prep-word
+       (cdr (assoc (string-upcase (string prep-word)) *preposition->relation*
+                   :test #'string=))))
 
 (defun complement-relation-for (pred-concept filler)
   "Relation to link PRED-CONCEPT to its clausal complement FILLER. A stative
@@ -429,6 +454,24 @@ are skipped for now."
                   (pa::getc 'pa::cases clause))
           collect (clause->ir clause (cons node seen))))
 
+(defun pp-adjunct-ir (pp seen)
+  "Adjunct IR for a surface PP node -- (:prep WORD :filler OBJECT-IR) -- or NIL if
+the PP has no object NP. The object recurses through filler->ir, so it gets full
+NP treatment (determiner, adjectives, apposition, ...)."
+  (let ((prep (ignore-errors (pa::word (pa::daughter 'pa::prep pp))))
+        (obj  (ignore-errors (pa::daughter 'pa::np pp))))
+    (when (and prep obj)
+      (list :prep prep :filler (filler->ir obj seen)))))
+
+(defun clause-adjuncts (node seen)
+  "Adjunct IRs for clause NODE's surface PP adjuncts. These are the `pp' daughters
+PARSIFAL attached to the clause because the verb did NOT license them as a case
+(a licensed PP -- e.g. give's `to' -- fills a case instead and never surfaces as a
+clause pp daughter). Each becomes [PRED]-(rel)->[OBJ] in emit-clause."
+  (loop for pp in (ignore-errors (pa::daughters 'pa::pp node))
+        for ir = (pp-adjunct-ir pp seen)
+        when ir collect ir))
+
 (defun spec-tense (spec-node)
   "cgraph tense keyword (:past / :present / :future) from a PARSIFAL aux SPEC
 node's features, or NIL (e.g. a tenseless infinitive)."
@@ -490,7 +533,8 @@ so descend to it (or use NODE itself if it already is the COMP-S)."
           :node   node
           :cases  (loop for (cname filler gfunc) in (reverse (pa::getc 'pa::cases node))
                         collect (list :role cname :gfunc gfunc
-                                      :filler (filler->ir filler seen))))))
+                                      :filler (filler->ir filler seen)))
+          :adjuncts (clause-adjuncts node seen))))
 
 (defun parse->ir (node)
   "Build a clause IR from a PARSIFAL parse NODE. Flushes the open frame first
@@ -607,7 +651,32 @@ relation instead of the case's entity-typed relation."
                 (t
                  (cg::add-arc-into-relation pred-concept relation)
                  (cg::set-arc-from-relation relation filler-concept))))))))
+    ;; PP adjuncts (unlicensed PPs PARSIFAL hung on the clause): [PRED]-(rel)->[OBJ],
+    ;; rel from the preposition ("in the park" -> loc). After the cases, so the
+    ;; predicate concept already exists.
+    (dolist (adj (getf ir :adjuncts))
+      (emit-adjunct pred-concept adj))
     pred-concept))
+
+(defun emit-adjunct (pred-concept adj)
+  "Emit [PRED]-(REL)->[OBJ] for a PP adjunct ADJ (:prep + :filler); REL comes from
+the preposition (locatives -> loc). Skips (with a warning) an unmapped preposition
+or an object whose type doesn't fit the relation's dest, so an adjunct never
+aborts the extraction."
+  (let ((rel-label (preposition->relation (getf adj :prep))))
+    (if (null rel-label)
+        (warn "cg-from-parse: PP adjunct (~a ...) dropped: no relation mapped for preposition"
+              (getf adj :prep))
+        (let* ((relation    (cg::make-relation rel-label))
+               (dest-type   (cg::dest-type (cg::relation-type relation)))
+               (obj-concept (emit-filler (getf adj :filler) dest-type)))
+          (when obj-concept
+            (if (arc-dest-ok-p obj-concept relation)
+                (progn (cg::add-arc-into-relation pred-concept relation)
+                       (cg::set-arc-from-relation relation obj-concept))
+                (warn "cg-from-parse: PP adjunct [~a] not linked via (~a): type ~a doesn't fit dest ~a"
+                      (getf adj :prep) rel-label
+                      (cg::label (cg::concept-type obj-concept)) (cg::label dest-type))))))))
 
 (defun arc-dest-ok-p (concept relation)
   "Would CONCEPT satisfy RELATION's out-arc (dest) type? Mirrors the test in

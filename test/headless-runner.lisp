@@ -28,6 +28,7 @@
     ("modifier"     . extract-modifier-headless-test)
     ("genitive"     . extract-genitive-headless-test)
     ("apposition"   . extract-apposition-headless-test)
+    ("pp-adjunct"   . extract-pp-adjunct-headless-test)
     ("passive"      . extract-passive-headless-test)
     ("determiner"   . extract-determiner-headless-test)
     ("quantifier"   . extract-quantifier-headless-test)
