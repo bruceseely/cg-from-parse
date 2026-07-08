@@ -70,6 +70,8 @@
         (cons 'pa::neut   'cg::obj)    ; neutral   -> obj   (ACT -> ENTITY)
         (cons 'pa::dat    'cg::rcpt)   ; dative    -> rcpt  (ACT -> ANIMATE)
         (cons 'pa::loc    'cg::loc)    ; location  -> loc   (⊤   -> PLACE)
+        (cons 'pa::time   'cg::time)   ; time      -> time  (SITUATION -> TIME-PERIOD)
+        (cons 'pa::exch   'cg::exch)   ; exchange  -> exch  (ACT -> ENTITY)
         (cons 'pa::manner 'cg::manr))  ; manner    -> manr  (ACT -> MANNER)
   "PARSIFAL thematic case roles (in :parsifal) mapped to cgraph relation labels
 (in :conceptual-graphs). Each relation is emitted as [PRED]->(rel)->[filler], so
@@ -78,7 +80,13 @@ an act belong here (that excludes poss/from/goal, whose sources are
 animate/entity/state). agt/neut/dat are exercised by the test verbs; the
 prepositional dative (give's `to' PP) also fills DAT. loc/manr are wired and
 correct but need a verb that licenses them (or surface-tree PP-adjunct handling,
-see notes/next-steps.md) to surface -- PP adjuncts are NOT in the case frame.")
+see notes/next-steps.md) to surface -- PP adjuncts are NOT in the case frame.
+
+time/exch are the case-frame TIME and EXCH slots PARSIFAL now fills (via our
+*bare-time-rules*, which turn a bare temporal into a `during'-PP filling TIME,
+and pay's for->exch PP): time -> `time' (the SAME relation the temporal
+PP-adjunct path uses, adjunct-relation), exch -> `exch'. Both are case slots,
+so unlike the adjunct/adverb paths they emit here in the case walk.")
 
 (defparameter *predicate-root* 'cg::act
   "Concept-type a predicate (verb) lemma is placed under when it must be
