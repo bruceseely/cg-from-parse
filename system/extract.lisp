@@ -107,18 +107,26 @@ otherwise the default *case-role->relation* applies."
       (case-role->relation role)))
 
 (defparameter *preposition->relation*
-  (list (cons "IN"     'cg::loc) (cons "ON"      'cg::loc)
+  (list ;; locative -> loc (⊤ -> place)
+        (cons "IN"     'cg::loc) (cons "ON"      'cg::loc)
         (cons "AT"     'cg::loc) (cons "INSIDE"  'cg::loc)
         (cons "NEAR"   'cg::loc) (cons "BY"      'cg::loc)
         (cons "UNDER"  'cg::loc) (cons "BEHIND"  'cg::loc)
-        (cons "OVER"   'cg::loc))
+        (cons "OVER"   'cg::loc)
+        ;; instrument -> inst (event -> entity). "sees the dog WITH the telescope"
+        ;; -- exactly see's canonical (inst)->[OBJECT].
+        (cons "WITH"   'cg::inst))
   "Adjunct-preposition word -> cgraph relation. A PP adjunct is a PP the verb did
 NOT license as a case (\"the man sees the dog in the park\"); PARSIFAL attaches it
-to the clause, and we link its object off the predicate. Locative prepositions
-map to `loc' (⊤ -> place). An adjunct whose preposition isn't mapped here is
-skipped (with a warning), so an unknown preposition never aborts the extraction.
-(A richer map -- with->inst/accm, temporal prepositions->time, ... -- is future
-work; the licensed prepositional dative `to' is handled as a case, not here.)")
+to the clause, and we link its object off the predicate. Locative prepositions map
+to `loc' (⊤ -> place); instrumental `with' maps to `inst' (event -> entity). An
+adjunct whose preposition isn't mapped here is skipped (with a warning), so an
+unknown preposition never aborts the extraction. (A richer map -- temporal
+prepositions -> time, `with' comitative -> an accompaniment relation, ... -- is
+future work; the licensed prepositional dative `to' is handled as a case, not
+here. `with' is read as instrument, not accompaniment: cgraph test-types have an
+`inst' relation but no comitative one, and instrument is `with''s canonical
+verb-adjunct sense.)")
 
 (defun preposition->relation (prep-word)
   "cgraph relation label for an adjunct PREP-WORD (\"in\"/\"on\"/... -> loc), else

@@ -67,11 +67,16 @@
 > [SEE]-(agnt)->[MAN:#] (obj)->[DOG:#] (loc)->[CITY:#]. NOT in *grammar-extensions*
 > (no parser change) and NOT in parsifal EXTENSIONS.md.
 >
-> NEXT UP: remaining #5 pieces -- non-locative prepositions (with->inst, temporal
-> ->time) and ADVERBS (blocked on lexicon: manner adverbs quickly/slowly aren't
-> lexicalized; deictic here/now/there parse but get dropped by non-licensing
-> verbs, same as PP adjuncts were -- but the adverb path may need a grammar rule
-> to attach them). Anaphora (#12) stays deferred. Pick with the user.
+> NON-LOCATIVE PREPOSITIONS -- DONE (2026-07-07): `with' -> inst, "... with the
+> telescope ." -> [SEE]...(inst)->[TELESCOPE:#]. One-line add to
+> *preposition->relation* (the adjunct machinery already handled it) + `telescope'
+> added to cgraph test-types. Extractor-only, not in EXTENSIONS.md.
+>
+> NEXT UP: remaining #5 -- temporal prepositions (during/before/after -> time,
+> needs time-period-typed objects) and ADVERBS (blocked on lexicon: manner adverbs
+> quickly/slowly aren't lexicalized; deictic here/now/there parse but get dropped
+> by non-licensing verbs -- the adverb path likely needs a grammar rule to attach
+> them, i.e. a real *grammar-extensions* addition). Anaphora (#12) deferred.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
 priority order. Current state (2026-06-25): transitive clauses, control
@@ -154,10 +159,24 @@ pp daughter, so these are exactly the adjuncts; each -> {:prep :filler} on the
 clause IR's :adjuncts; emit-adjunct maps the preposition via *preposition->
 relation* (locatives in/on/at/near/... -> loc, ⊤->place) and emits
 [PRED]-(rel)->[OBJ], reusing arc-dest-ok-p so a bad object type is skipped with a
-warning. Test: test/extract-pp-adjunct-headless.lisp (strict :error; loc->[CITY],
-`city' is a place in test-types). 21/21 headless; parsifal untouched (56/56).
-STILL OPEN under #5: non-locative prepositions (with->inst/accm, temporal->time)
-and ADVERBS (see below -- those DO need lexicon + possibly grammar adds).
+warning. Test: test/extract-pp-adjunct-headless.lisp covers loc->[CITY] AND
+inst->[TELESCOPE]. 21/21 headless; parsifal untouched (56/56).
+
+NON-LOCATIVE PREPOSITIONS — DONE (2026-07-07): `with' -> inst (instrument, event
+-> entity), so "the man sees the dog with the telescope ." ->
+  [SEE]-(agnt)->[MAN: #] (obj)->[DOG: #] (inst)->[TELESCOPE: #]
+-- exactly see's own canonical (inst)->[OBJECT]. This was a ONE-LINE add to
+*preposition->relation* ("WITH" -> cg::inst); the clause-adjuncts/emit-adjunct
+machinery from the locative work already handled it (the PP attaches to the S,
+same as locatives -- verified). Also added `telescope' (⊑ tool) to CGRAPH
+test-types (test/test-types/concept-types.lisp) so the strict test type-checks
+(telescope was already in parsifal's supplement.dict). `with' is read as
+INSTRUMENT not accompaniment: test-types have `inst' but no comitative relation,
+and instrument is with's canonical adjunct sense. Extractor-only, no parser
+change -> NOT in EXTENSIONS.md.
+STILL OPEN under #5: temporal prepositions (during/before/after -> time; needs
+time-period-typed objects) and ADVERBS (see below -- those DO need lexicon +
+possibly grammar adds).
 
 ADVERBS are BLOCKED (same root cause as PP adjuncts), investigated 2026-06-27:
 manner adverbs (quickly/slowly) are NOT in the lexicon (dropped as unknown); and
