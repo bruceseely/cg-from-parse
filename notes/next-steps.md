@@ -67,15 +67,16 @@
 > [SEE]-(agnt)->[MAN:#] (obj)->[DOG:#] (loc)->[CITY:#]. NOT in *grammar-extensions*
 > (no parser change) and NOT in parsifal EXTENSIONS.md.
 >
-> NON-LOCATIVE PREPOSITIONS -- DONE (2026-07-07): `with' -> inst, "... with the
-> telescope ." -> [SEE]...(inst)->[TELESCOPE:#]. One-line add to
-> *preposition->relation* (the adjunct machinery already handled it) + `telescope'
-> added to cgraph test-types. Extractor-only, not in EXTENSIONS.md.
+> NON-LOCATIVE + TEMPORAL PREPOSITIONS -- DONE (2026-07-07): `with' -> inst
+> ("... with the telescope ." -> (inst)->[TELESCOPE:#]); temporal PPs -> `time'
+> either via a dedicated temporal prep (before/after/...) or a time-NP object
+> ("on monday" -> (time)->[MONDAY:#]), which resolves the loc/time ambiguity of
+> in/on/at by the object's type. adjunct-relation(prep,obj) in extract.lisp; added
+> telescope + monday to cgraph test-types. Extractor-only, not in EXTENSIONS.md.
 >
-> NEXT UP: remaining #5 -- temporal prepositions (during/before/after -> time,
-> needs time-period-typed objects) and ADVERBS (blocked on lexicon: manner adverbs
-> quickly/slowly aren't lexicalized; deictic here/now/there parse but get dropped
-> by non-licensing verbs -- the adverb path likely needs a grammar rule to attach
+> NEXT UP: remaining #5 -- ADVERBS (blocked on lexicon: manner adverbs quickly/
+> slowly aren't lexicalized; deictic here/now/there parse but get dropped by
+> non-licensing verbs -- the adverb path likely needs a grammar rule to attach
 > them, i.e. a real *grammar-extensions* addition). Anaphora (#12) deferred.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
@@ -174,9 +175,21 @@ test-types (test/test-types/concept-types.lisp) so the strict test type-checks
 INSTRUMENT not accompaniment: test-types have `inst' but no comitative relation,
 and instrument is with's canonical adjunct sense. Extractor-only, no parser
 change -> NOT in EXTENSIONS.md.
-STILL OPEN under #5: temporal prepositions (during/before/after -> time; needs
-time-period-typed objects) and ADVERBS (see below -- those DO need lexicon +
-possibly grammar adds).
+TEMPORAL PREPOSITIONS — DONE (2026-07-07): PP adjuncts route to the `time'
+relation (situation -> time-period; see ⊑ act ⊑ event ⊑ situation), TWO ways --
+(a) a dedicated temporal preposition (before/after/during/until/since,
+*temporal-prepositions*), or (b) a time-NP object (PARSIFAL's `time' feature, e.g.
+monday), which resolves the loc/time AMBIGUITY of in/on/at by the object's type:
+  "the man sees the dog on monday ."     -> (time)->[MONDAY]  (ambiguous `on' + time obj)
+  "the man sees the dog before monday ." -> (time)->[MONDAY]  (dedicated temporal prep)
+  "the man sees the dog in the city ."   -> (loc)->[CITY]     (still locative)
+New in extract.lisp: adjunct-relation(prep, obj) computes the relation (stored as
+:relation on the adjunct IR); temporal-preposition-p + np-temporal-p. Added
+`monday' (⊑ time-period) to cgraph test-types (monday is already a `time' noun in
+parsifal's dict). Extractor-only, no parser change -> NOT in EXTENSIONS.md. Test:
+extract-pp-adjunct-headless now covers loc + inst + time(obj) + time(prep). 21/21.
+STILL OPEN under #5: ADVERBS (see below -- those DO need lexicon + possibly a
+grammar rule to attach unlicensed adverbial adjuncts).
 
 ADVERBS are BLOCKED (same root cause as PP adjuncts), investigated 2026-06-27:
 manner adverbs (quickly/slowly) are NOT in the lexicon (dropped as unknown); and

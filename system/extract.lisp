@@ -27,9 +27,12 @@
 ;;;    :voice :passive/NIL :clause-type :proposition/:situation/NIL
 ;;;    :cases (CASE ...) :adjuncts (ADJUNCT ...))
 ;;;                                              ; :adjuncts = PP adjuncts, each
-;;;                                              ; (:prep WORD :filler FILLER-IR)
-;;;                                              ; -> [PRED]-(rel)->[OBJ] ("in the
-;;;                                              ; park" -> (loc)->[PLACE])
+;;;                                              ; (:prep WORD :relation REL
+;;;                                              ; :filler FILLER-IR) -> [PRED]-
+;;;                                              ; (rel)->[OBJ] ("in the park" ->
+;;;                                              ; (loc)->[PLACE]; "with the
+;;;                                              ; telescope" -> (inst)->[OBJECT];
+;;;                                              ; "on monday" -> (time)->[PERIOD])
 ;;;   (:clause-type distinguishes a that-clause complement (:proposition) from an
 ;;;    infinitival (:situation); NIL for the matrix clause -- see complement-type-for.)
 ;;; A case (one filled thematic role):
@@ -121,12 +124,13 @@ NOT license as a case (\"the man sees the dog in the park\"); PARSIFAL attaches 
 to the clause, and we link its object off the predicate. Locative prepositions map
 to `loc' (⊤ -> place); instrumental `with' maps to `inst' (event -> entity). An
 adjunct whose preposition isn't mapped here is skipped (with a warning), so an
-unknown preposition never aborts the extraction. (A richer map -- temporal
-prepositions -> time, `with' comitative -> an accompaniment relation, ... -- is
-future work; the licensed prepositional dative `to' is handled as a case, not
-here. `with' is read as instrument, not accompaniment: cgraph test-types have an
-`inst' relation but no comitative one, and instrument is `with''s canonical
-verb-adjunct sense.)")
+unknown preposition never aborts the extraction. NB temporal PPs are NOT keyed off
+this map alone: a temporal preposition (before/after/...) or a time-NP object
+(\"on monday\") routes to `time' via adjunct-relation, which resolves the loc/time
+ambiguity of in/on/at by the object's type. (Still future work: `with' comitative
+-> an accompaniment relation; the licensed prepositional dative `to' is handled as
+a case, not here. `with' is read as instrument, not accompaniment: cgraph
+test-types have an `inst' relation but no comitative one.)")
 
 (defun preposition->relation (prep-word)
   "cgraph relation label for an adjunct PREP-WORD (\"in\"/\"on\"/... -> loc), else
@@ -462,14 +466,43 @@ are skipped for now."
                   (pa::getc 'pa::cases clause))
           collect (clause->ir clause (cons node seen))))
 
+(defparameter *temporal-prepositions*
+  '("BEFORE" "AFTER" "DURING" "UNTIL" "SINCE")
+  "Prepositions whose PP adjunct is ALWAYS temporal (-> the `time' relation),
+whatever the object. The ambiguous locatives in/on/at are temporal only when their
+object is a time NP (\"on monday\" vs \"on the mat\") -- see adjunct-relation.")
+
+(defun temporal-preposition-p (prep)
+  "True when PREP is a dedicated temporal preposition (before/after/...)."
+  (and prep (member (string-upcase (string prep)) *temporal-prepositions*
+                    :test #'string=)
+       t))
+
+(defun np-temporal-p (np)
+  "True when NP is a time expression -- PARSIFAL's `time' feature (monday, ...) --
+so a PP over it is temporal even under an ambiguous preposition (\"on monday\")."
+  (and np (member 'pa::time (ignore-errors (pa::fe np))) t))
+
+(defun adjunct-relation (prep obj)
+  "cgraph relation label for a PP adjunct, resolving the loc/time ambiguity of
+in/on/at by the object's type: a temporal preposition OR a time-NP object -> the
+`time' relation (situation -> time-period); otherwise the preposition's default
+(locatives -> loc, `with' -> inst). NIL if the preposition isn't mapped at all."
+  (cond ((temporal-preposition-p prep) 'cg::time)
+        ((np-temporal-p obj)           'cg::time)
+        (t (preposition->relation prep))))
+
 (defun pp-adjunct-ir (pp seen)
-  "Adjunct IR for a surface PP node -- (:prep WORD :filler OBJECT-IR) -- or NIL if
-the PP has no object NP. The object recurses through filler->ir, so it gets full
-NP treatment (determiner, adjectives, apposition, ...)."
+  "Adjunct IR for a surface PP node -- (:prep WORD :relation REL :filler OBJECT-IR)
+-- or NIL if the PP has no object NP. The relation is resolved from the preposition
+AND the object's type (see adjunct-relation). The object recurses through
+filler->ir, so it gets full NP treatment (determiner, adjectives, apposition, ...)."
   (let ((prep (ignore-errors (pa::word (pa::daughter 'pa::prep pp))))
         (obj  (ignore-errors (pa::daughter 'pa::np pp))))
     (when (and prep obj)
-      (list :prep prep :filler (filler->ir obj seen)))))
+      (list :prep prep
+            :relation (adjunct-relation prep obj)
+            :filler (filler->ir obj seen)))))
 
 (defun clause-adjuncts (node seen)
   "Adjunct IRs for clause NODE's surface PP adjuncts. These are the `pp' daughters
@@ -667,11 +700,11 @@ relation instead of the case's entity-typed relation."
     pred-concept))
 
 (defun emit-adjunct (pred-concept adj)
-  "Emit [PRED]-(REL)->[OBJ] for a PP adjunct ADJ (:prep + :filler); REL comes from
-the preposition (locatives -> loc). Skips (with a warning) an unmapped preposition
-or an object whose type doesn't fit the relation's dest, so an adjunct never
-aborts the extraction."
-  (let ((rel-label (preposition->relation (getf adj :prep))))
+  "Emit [PRED]-(REL)->[OBJ] for a PP adjunct ADJ (:prep + :relation + :filler); REL
+was resolved from the preposition and the object type (adjunct-relation). Skips
+(with a warning) an unmapped preposition or an object whose type doesn't fit the
+relation's dest, so an adjunct never aborts the extraction."
+  (let ((rel-label (getf adj :relation)))
     (if (null rel-label)
         (warn "cg-from-parse: PP adjunct (~a ...) dropped: no relation mapped for preposition"
               (getf adj :prep))

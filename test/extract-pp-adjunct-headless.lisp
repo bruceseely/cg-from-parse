@@ -1,18 +1,23 @@
 ;;; -*- Mode: LISP; Syntax: Common-lisp; Base: 10; Lowercase: Yes -*-
 ;;;
-;;; Live PP-adjunct check: locative and instrumental PPs.
+;;; Live PP-adjunct check: locative, instrumental, and temporal PPs.
 ;;; A PP the verb does NOT license as a case ("in the city" / "with the telescope"
-;;; -- `see' fills neither slot from a PP here) is NOT dropped: PARSIFAL attaches
-;;; it to the CLAUSE as a surface `pp' daughter (this is Marcus's own gram5
-;;; PP-UNDER-S rule -- NOT a grammar extension of ours). The extractor walks those
-;;; clause pp daughters (clause-adjuncts), maps the preposition to a relation, and
-;;; emits it off the predicate:
-;;;   "... in the city ."       -> (loc)->[CITY: #]         (locative preposition)
+;;; / "on monday" -- `see' fills no slot from these) is NOT dropped: PARSIFAL
+;;; attaches it to the CLAUSE as a surface `pp' daughter (this is Marcus's own
+;;; gram5 PP-UNDER-S rule -- NOT a grammar extension of ours). The extractor walks
+;;; those clause pp daughters (clause-adjuncts), resolves each preposition to a
+;;; relation, and emits it off the predicate:
+;;;   "... in the city ."        -> (loc)->[CITY: #]        (locative preposition)
 ;;;   "... with the telescope ." -> (inst)->[TELESCOPE: #]  (instrument; see's own
 ;;;                                 canonical graph is (inst)->[OBJECT])
-;;; loc is ⊤ -> place and inst is event -> entity; `city' (a place) and `telescope'
-;;; (a tool) are in test-types, so this runs strict (:error). man/dog/see/in/with/
-;;; telescope are dictionary-driven; `city' gets a small df.
+;;;   "... on monday ."          -> (time)->[MONDAY: #]     (AMBIGUOUS prep `on' --
+;;;                                 locative on the mat, temporal on monday --
+;;;                                 resolved to `time' by the time-NP object)
+;;;   "... before monday ."      -> (time)->[MONDAY: #]     (dedicated temporal prep)
+;;; loc is ⊤->place, inst is event->entity, time is situation->time-period (and
+;;; see ⊑ act ⊑ event ⊑ situation). `city' (place), `telescope' (tool), `monday'
+;;; (time-period) are in test-types, so this runs strict (:error). man/dog/see/in/
+;;; with/on/before/telescope/monday are dictionary-driven; `city' gets a small df.
 ;;;
 ;;;   sbcl --non-interactive --disable-debugger \
 ;;;     --eval '(ql:quickload :swank)' --eval '(ql:quickload :cg-from-parse)' \
@@ -44,18 +49,26 @@
 (defun extract-pp-adjunct-headless-test (&optional (verbose t))
   (let ((loc   (%pp-adjunct-graph "the man sees the dog in the city ."))
         (inst  (%pp-adjunct-graph "the man sees the dog with the telescope ."))
+        (tobj  (%pp-adjunct-graph "the man sees the dog on monday ."))
+        (tprep (%pp-adjunct-graph "the man sees the dog before monday ."))
         (plain (%pp-adjunct-graph "the man sees the dog .")))
-    (let ((pass (and loc inst plain
+    (let ((pass (and loc inst tobj tprep plain
                      ;; locative PP -> (loc)->[CITY]
                      (search "SEE" loc) (search "(AGNT)→[MAN" loc)
                      (search "(OBJ)→[DOG" loc) (search "(LOC)→[CITY" loc)
                      ;; instrumental PP -> (inst)->[TELESCOPE]
                      (search "(INST)→[TELESCOPE" inst) (search "(OBJ)→[DOG" inst)
-                     ;; control: no PP -> no loc/inst arc, still a clean parse
+                     ;; temporal, ambiguous prep `on' + time object -> (time)->[MONDAY]
+                     (search "(TIME)→[MONDAY" tobj) (not (search "LOC" tobj))
+                     ;; temporal, dedicated prep `before' -> (time)->[MONDAY]
+                     (search "(TIME)→[MONDAY" tprep)
+                     ;; control: no PP -> no adjunct arc, still a clean parse
                      (search "SEE" plain)
-                     (not (search "LOC" plain)) (not (search "INST" plain)))))
+                     (not (search "LOC" plain)) (not (search "INST" plain))
+                     (not (search "TIME" plain)))))
       (when verbose
-        (format t "~&locative:   ~a~%instrument: ~a~%without:    ~a~%" loc inst plain))
+        (format t "~&locative:   ~a~%instrument: ~a~%temporal(obj):  ~a~%temporal(prep): ~a~%without: ~a~%"
+                loc inst tobj tprep plain))
       (format t "~&extract-pp-adjunct-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
       pass)))
 
