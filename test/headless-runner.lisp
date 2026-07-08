@@ -41,6 +41,7 @@
     ("raising"      . extract-raising-headless-test)
     ("stative"      . extract-stative-headless-test)
     ("complement"   . extract-complement-headless-test)
+    ("exchange"     . extract-exchange-headless-test)
     ("driver"       . extract-driver-headless-test))
   "(label . test-function) for each extract-<label>-headless.lisp script.")
 

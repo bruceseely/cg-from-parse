@@ -62,5 +62,7 @@ lemmas (:error / :create / :top).
         (error "cg-from-parse: PARSIFAL could not parse ~s" sentence))))
 
 (defun sentence->cg-text (sentence &key (on-missing *on-missing-type*))
-  "Convenience: parse-and-extract SENTENCE and return the formatted CG string."
-  (cg::format-cgraph (parse-and-extract sentence :on-missing on-missing)))
+  "Convenience: parse-and-extract SENTENCE and return the formatted CG string.
+Routes through cg-text, so a promoted [EXCHANGE] graph gets the block renderer
+(render.lisp) and everything else the engine's format-cgraph."
+  (cg-text (parse-and-extract sentence :on-missing on-missing)))

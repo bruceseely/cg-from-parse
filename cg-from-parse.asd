@@ -40,6 +40,7 @@
   :components ((:module "system"
                 :serial t
                 :components ((:file "extract")
+                             (:file "render")
                              (:file "driver")))
                (:module "test"
                 :serial t

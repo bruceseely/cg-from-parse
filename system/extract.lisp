@@ -685,11 +685,92 @@ NODE, and return it."
         (when node (setf (gethash node *node->concept*) concept))
         concept)))
 
+;;; ---------------------------------------------------------------------------
+;;; Commercial-transaction frame (Fillmore): promote `pay' to an [EXCHANGE]
+;;; ---------------------------------------------------------------------------
+;;;
+;;; A commercial verb doesn't name a flat single act -- it profiles ONE
+;;; perspective on a two-sided exchange (goods one way, money the other), each
+;;; side a transfer sub-event with its own participants and its OWN time. So
+;;; rather than [PAY]-(agnt)(rcpt)(exch)(time)(time) -- which wrongly hangs BOTH
+;;; times on the paying -- we promote to:
+;;;
+;;;   [EXCHANGE]-
+;;;     (has-part)->[PAY] -(agnt)->[I]   (rcpt)->[YOU] (obj)->[MONEY]     (time)->[TUESDAY]
+;;;     (has-part)->[GIVE]-(agnt)->[YOU] (rcpt)->[I]   (obj)->[HAMBURGER] (time)->[TODAY]
+;;;
+;;; The agents SWAP (reciprocity); [MONEY] and the whole [GIVE] transfer are
+;;; frame-supplied (the sentence states neither); and each time now lands on a
+;;; real sub-event, so `time' (situation->time-period) type-checks. Times route
+;;; by surface position -- the IR :cases are in fill = surface order, so a `time'
+;;; case BEFORE the `exch' goods case belongs to the payment and one AFTER it to
+;;; the goods transfer. Coreference falls out for free: the same "I"/"you" nodes
+;;; reused across both sub-clauses map to the same concepts (named-concept).
+;;;
+;;; This is a frame-semantic enrichment layered ON TOP of a flat parse -- the
+;;; parser is untouched -- and so a departure recorded in parsifal/EXTENSIONS.md.
+
+(defparameter *commercial-verbs* '(pa::pay)
+  "Predicates promoted to the [EXCHANGE] frame (Fillmore commercial transaction).
+Start with `pay'; `buy'/`sell' can join once their case perspectives are mapped.")
+
+(defun commercial-clause-p (ir)
+  "A clause IR to promote to an exchange: a commercial verb WITH a filled `exch'
+goods case to split the participants and times around. The promoted sub-clauses
+carry no `exch' case, so this is false for them -- emit-exchange won't recurse."
+  (and (eq (getf ir :kind) :clause)
+       (member (getf ir :pred) *commercial-verbs*)
+       (find 'pa::exch (getf ir :cases) :key (lambda (c) (getf c :role)))))
+
+(defun emit-exchange (ir)
+  "Promote a commercial-transaction clause to Fillmore's exchange frame (see the
+commentary above): an [EXCHANGE] with two reciprocal transfers linked by
+(has-part) -- a PAY (money, agent->recipient) and a GIVE (goods, recipient->agent,
+both frame-supplied). Times route by surface position; the manner adverb marks
+the paying. Returns the [EXCHANGE] concept, which becomes the graph root."
+  (let* ((cases      (getf ir :cases))
+         (exch-pos   (position 'pa::exch cases :key (lambda (c) (getf c :role))))
+         (goods      (getf (nth exch-pos cases) :filler))
+         (agt        (getf (find 'pa::agt cases :key (lambda (c) (getf c :role))) :filler))
+         (dat        (getf (find 'pa::dat cases :key (lambda (c) (getf c :role))) :filler))
+         (pre-times  (loop for c in cases for i from 0
+                           when (and (eq (getf c :role) 'pa::time) (< i exch-pos)) collect c))
+         (post-times (loop for c in cases for i from 0
+                           when (and (eq (getf c :role) 'pa::time) (> i exch-pos)) collect c))
+         (money      (list :kind :entity :node nil :lemma 'pa::money))
+         ;; the payment transfer: I -pay-> you, money, times before the goods
+         (pay-ir     (list :kind :clause :pred 'pa::pay :node (getf ir :node)
+                           :tense (getf ir :tense) :aspect (getf ir :aspect)
+                           :voice (getf ir :voice) :adverbs (getf ir :adverbs)
+                           :cases (append
+                                   (when agt (list (list :role 'pa::agt :filler agt)))
+                                   (when dat (list (list :role 'pa::dat :filler dat)))
+                                   (list (list :role 'pa::neut :filler money))
+                                   pre-times)))
+         ;; the goods transfer: you -give-> me, the goods, times after the goods
+         (give-ir    (list :kind :clause :pred 'pa::give :node nil
+                           :cases (append
+                                   (when dat (list (list :role 'pa::agt :filler dat)))
+                                   (when agt (list (list :role 'pa::dat :filler agt)))
+                                   (list (list :role 'pa::neut :filler goods))
+                                   post-times)))
+         (exchange   (concept-for-node nil 'pa::exchange 'cg::event)))
+    (flet ((link-part (part-concept)
+             (let ((rel (cg::make-relation 'cg::has-part)))
+               (cg::add-arc-into-relation exchange rel)
+               (cg::set-arc-from-relation rel part-concept))))
+      (link-part (emit-clause pay-ir))
+      (link-part (emit-clause give-ir)))
+    exchange))
+
 (defun emit-clause (ir)
   "Emit clause IR into the current context; return its predicate concept.
 Builds  [PRED]->(rel)->[FILLER]  for each mapped, filled case. A clausal-
 complement filler is embedded as a proposition and linked via the proposition
-relation instead of the case's entity-typed relation."
+relation instead of the case's entity-typed relation. A commercial-transaction
+clause (`pay') is instead promoted to an [EXCHANGE] frame (see emit-exchange)."
+  (when (commercial-clause-p ir)
+    (return-from emit-clause (emit-exchange ir)))
   (let ((pred-concept (concept-for-node (getf ir :node) (getf ir :pred) *predicate-root*)))
     ;; Carry tense/aspect onto the predicate concept (not shown by the linear
     ;; formatter, but stored for the realizer / queries).
