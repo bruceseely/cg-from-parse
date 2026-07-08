@@ -32,12 +32,36 @@
 > regressions: parsifal full-grammar + coverage(47) + NP tests green; 19/19
 > cg-from-parse headless.
 >
-> NEXT UP: with genitives done, the parser-side toolkit is proven. The other
-> parser-blocked items are now unblockable the same way: APPOSITION (#11, "the
-> dog, Spot") and PP ADJUNCTS / ADVERBS (#5 -- need a verb that licenses the
-> adjunct OR surface-tree walking + lexicon adds). Anaphora (#12) is still
-> deferred (fuzzy, cross-sentence). Pick with the user; apposition is the closest
-> analogue to what was just done.
+> APPOSITION -- DONE (2026-07-07), the FIRST non-Marcus grammar rule (gram1-5
+> and the 1977 appendix have no apposition), so it lives in *grammar-extensions*
+> (not *marcus-full-grammar*) -- see the grammar-promotion note below.
+>   "the dog , spot sees the woman ." -> [SEE]-(agnt)->[DOG: Spot] (obj)->[WOMAN:#]
+> The head NP keeps its SPECIFIC type (dog) and the appositive supplies the NAME,
+> so the named individual is [DOG: Spot], not the name marker's broad [ANIMAL:
+> Spot]. Works in subject AND object position.
+> PARSER side (parsifal *apposition-rules*, one rule): APPOSITIVE IN NP-COMPLETE
+> on [=apunc][=name] -- the comma (apunc) sits in 1st so PROPNAME (an attention
+> shift needing a name in 1st) never fires; consume the comma (1st) AND the name
+> NP (2nd -- PROPNAME builds it during lookahead, and its `* is not np' guard
+> stops it re-triggering) in one rule, as gram1 NP-UTTERANCE grabs 1st+2nd,
+> attaching the name under the head's `appos' daughter, then Run np-done next.
+> Default priority 10 beats NP-DONE (15) so it intercepts before the NP finalises.
+> EXTRACTOR side (system/extract.lisp): np-appos-name reads the head NP's `appos'
+> daughter (a name NP) -> the name string; filler->ir adds :appos to the entity
+> IR; emit-filler's :entity branch, when :appos is set, replaces the concept's
+> referent with a NAMED individual of the head's OWN type ([DOG: Spot]). Tests:
+> parsifal/test/integration/gram1-apposition-test.lisp (13 asserts, incl. object
+> position + a no-comma negative) and test/extract-apposition-headless.lisp
+> (strict :error). No regressions: parsifal 56/56 integration; cg 20/20 headless.
+>
+> ALSO (2026-07-07, before apposition): promoted the grammar out of the test tree
+> to parsifal/system/grammar/clause-grammar.lisp (was test/integration/), and
+> split *full-grammar* into *marcus-full-grammar* (verbatim ports) +
+> *grammar-extensions* (ours) with a `load-marcus-grammar' baseline entry point.
+>
+> NEXT UP: PP ADJUNCTS / ADVERBS (#5 -- needs a verb that licenses the adjunct OR
+> surface-tree walking + lexicon adds) is the main remaining parser-blocked item.
+> Anaphora (#12) stays deferred (fuzzy, cross-sentence). Pick with the user.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
 priority order. Current state (2026-06-25): transitive clauses, control
@@ -279,15 +303,17 @@ test/extract-number-headless.lisp. (Reader detail: build-set-from-specs drops a
 generic `*' member, so {Spot, Fido, *}@5 reads/renders as {Spot, Fido}@5 -- the
 @5 carries the "5 total" -- a separate reader nicety if the `*' should persist.)
 
-## 11. Apposition: "the dog, Spot" -> [DOG: Spot]
+## 11. Apposition: "the dog, Spot" -> [DOG: Spot]  — DONE (2026-07-07)
 A standalone named individual only gets the BROAD type from the name's marker
 (anim -> [ANIMAL: Fido], never [DOG: Fido]). To get the specific type, the head
-noun must supply it via apposition: "the dog, Spot" -> [DOG: Spot]. BLOCKED on
-the parser: PARSIFAL has no apposition grammar -- "... the dog , spot ." fails
-to parse (NIL) -- so this needs new grammar rules on the PARSIFAL side (parse a
-name in apposition to a common-noun NP, keeping the noun's type + the name),
-then a small extractor merge (head-noun type + :named name). cgraph already
-supports [DOG: Spot]; the gap is purely parser/lexicon (and the name needs a df).
+noun supplies it via apposition: "the dog , spot ." -> [DOG: Spot]. WAS blocked
+on the parser (PARSIFAL had no apposition grammar); fixed with a new PARSIFAL
+rule (*apposition-rules*: APPOSITIVE IN NP-COMPLETE on [=apunc][=name], attaching
+the name NP under the head's `appos' daughter while keeping the head's type) plus
+a small extractor merge (np-appos-name -> :appos on the entity IR -> a NAMED
+individual of the head's own type in emit-filler). This is the FIRST non-Marcus
+grammar rule, so it lives in *grammar-extensions*. Works in subject and object
+position. See the DONE banner at the top for the full write-up.
 
 ## 12. Anaphora (pronoun -> antecedent)  — DEFERRED (2026-06-27)
 Pronouns are already RECOGNIZED (pronoun-type -> indexical individuals:

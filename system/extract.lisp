@@ -38,12 +38,13 @@
 ;;;                   :determiner :definite/:indefinite/NIL
 ;;;                   :quantifier :universal/:existential/NIL
 ;;;                   :number :singular/:plural :count N/NIL :adjs (ADJ..)
-;;;                   :poss FILLER-IR/NIL :mods (CLAUSE-IR..))
+;;;                   :poss FILLER-IR/NIL :appos "Name"/NIL :mods (CLAUSE-IR..))
 ;;;                                              ; an NP; definite -> [X: #],
 ;;;                                              ; plural -> [X: {*}]; :adjs = adjectives,
 ;;;                                              ; :poss = genitive possessor (a nested
 ;;;                                              ; filler IR) -> [POSSESSOR]->(poss)->[X];
-;;;                                              ; :mods = relative clauses
+;;;                                              ; :appos = apposition name ("the dog,
+;;;                                              ; Spot" -> [DOG: Spot]); :mods = relatives
 ;;;   (:kind :trace   :binding PA-NODE :words (W..)) ; a bound trace (coref)
 ;;;   (:kind :backref :lemma LEMMA)               ; structural cycle, not recursed
 ;;;   (:kind :empty)                              ; nil filler
@@ -258,6 +259,7 @@ recursion path, used to break structural cycles (as ctree1 does)."
               :count  (np-count filler)
               :adjs  (adjective-lemmas filler)
               :poss  (np-possessor-ir filler seen)
+              :appos (np-appos-name filler)
               :mods  (clausal-mods filler seen)))))
     (t
      (list :kind :entity :node filler
@@ -269,6 +271,7 @@ recursion path, used to break structural cycles (as ctree1 does)."
            :count  (np-count filler)
            :adjs  (adjective-lemmas filler)
            :poss  (np-possessor-ir filler seen)
+           :appos (np-appos-name filler)
            :mods  (clausal-mods filler seen)))))
 
 (defparameter *wh-type*
@@ -340,6 +343,15 @@ so the possessor gets full treatment -- a common noun (\"the man's\" -> :entity)
 a proper name (\"mitch's\" -> :named), or a pronoun."
   (let ((poss (np-possessor node)))
     (and poss (filler->ir poss seen))))
+
+(defun np-appos-name (node)
+  "The appositive name of a common-noun NP NODE, e.g. \"the dog , spot\" -> \"Spot\",
+else NIL. Apposition attaches the name as a name NP under NODE's `appos' daughter
+(see parsifal *apposition-rules*); the head NP keeps its own specific type, and
+only the NAME is taken from the appositive -- so \"the dog , spot\" yields
+[DOG: Spot] rather than the name marker's broad [ANIMAL: Spot]."
+  (let ((appos (ignore-errors (pa::daughter 'pa::appos node))))
+    (and appos (proper-name appos))))
 
 (defparameter *proper-noun-type* 'cg::person
   "Default concept-type for a proper name when its markers don't pin one down.")
@@ -644,6 +656,15 @@ concepts, e.g. an unbound trace)."
                                                :definite (eq (getf filler :determiner) :definite)
                                                :plural   (eq (getf filler :number) :plural)
                                                :count    (getf filler :count))))
+                ;; Apposition ("the dog , spot"): keep the head's specific type but
+                ;; make it a NAMED individual -- [DOG: Spot], not [DOG: #]. The name
+                ;; comes from the appositive; the type stays the head noun's.
+                (let ((appos (getf filler :appos)))
+                  (when appos
+                    (setf (cg::referent concept)
+                          (cg::make-referent
+                           (cg::make-individual (cg::concept-type concept)
+                                                (list :name appos))))))
                 ;; Quantifier (all/some...): stored on the concept, like
                 ;; tense/voice -- not shown in linear form, used by the realizer.
                 (let ((q (getf filler :quantifier)))
