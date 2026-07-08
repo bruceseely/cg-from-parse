@@ -23,7 +23,7 @@
 
 ;; 2. PARSIFAL grammar: load the clause-grammar rule groups and register the
 ;;    minimal transitive set (mirrors gram1-caseframe-test).
-(load (merge-pathnames "test/integration/clause-grammar.lisp"
+(load (merge-pathnames "system/grammar/clause-grammar.lisp"
                        (asdf:system-source-directory :parsifal)))
 (pa::reset-rule-table)
 (pa::register-grammar pa::*np-rules* pa::*clause-rules* pa::*vp-np-rule*)

@@ -37,11 +37,11 @@ loaders use plain READ.)"
 (defun ensure-grammar (&optional force)
   "Load and register PARSIFAL's full grammar so parse-sentence can handle any
 supported construction. Done once per session (pass FORCE to redo). The grammar
-lives in parsifal's test/integration/clause-grammar.lisp; load-full-grammar
+lives in parsifal's system/grammar/clause-grammar.lisp; load-full-grammar
 there composes and registers it."
   (when (or force (not *grammar-loaded*))
     (load (asdf:system-relative-pathname :parsifal
-                                         "test/integration/clause-grammar.lisp"))
+                                         "system/grammar/clause-grammar.lisp"))
     (funcall (intern "LOAD-FULL-GRAMMAR" :parsifal))
     (setf *grammar-loaded* t))
   t)

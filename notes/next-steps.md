@@ -7,7 +7,7 @@
 >                                                   (obj)->[WOMAN:#].
 >   "mitch 's dog sees the woman ."   -> [DOG:#]<-(poss)<-[PERSON:Mitch]
 >   "my dog sees the woman ."         -> [DOG:#]<-(poss)<-[PERSON:I]  (:create; I not in test-types)
-> PARSER side (parsifal test/integration/clause-grammar.lisp *genitive-rules*,
+> PARSER side (parsifal system/grammar/clause-grammar.lisp *genitive-rules*,
 > both rules verbatim from Marcus gram3.l, added to *full-grammar*):
 >   - POSS-NP (IN NP-COMPLETE, [=poss]): attach the clitic `'s to a just-completed
 >     NP, re-label it poss-np, then `Run np-done next'. The "Run np-done next" is

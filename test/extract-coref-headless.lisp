@@ -15,7 +15,7 @@
                        (or *load-truename* *compile-file-truename*)))
 (setup-test-cgraph)
 
-(load (merge-pathnames "test/integration/clause-grammar.lisp"
+(load (merge-pathnames "system/grammar/clause-grammar.lisp"
                        (asdf:system-source-directory :parsifal)))
 (pa::reset-rule-table)
 (pa::register-grammar pa::*np-rules* pa::*clause-rules* pa::*inf-complement-rules*

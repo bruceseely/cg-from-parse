@@ -20,7 +20,7 @@
                        (or *load-truename* *compile-file-truename*)))
 (setup-test-cgraph)
 
-(load (merge-pathnames "test/integration/clause-grammar.lisp"
+(load (merge-pathnames "system/grammar/clause-grammar.lisp"
                        (asdf:system-source-directory :parsifal)))
 (pa::load-full-grammar)
 
