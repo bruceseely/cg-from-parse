@@ -25,14 +25,17 @@
 ;;;   (:kind :clause :pred LEMMA :spec SPEC-NODE-OR-NIL :node PA-NODE
 ;;;    :tense :past/:present/:future/NIL :aspect :perfect/NIL
 ;;;    :voice :passive/NIL :clause-type :proposition/:situation/NIL
-;;;    :cases (CASE ...) :adjuncts (ADJUNCT ...))
+;;;    :cases (CASE ...) :adjuncts (ADJUNCT ...) :adverbs (LEMMA ...))
 ;;;                                              ; :adjuncts = PP adjuncts, each
 ;;;                                              ; (:prep WORD :relation REL
 ;;;                                              ; :filler FILLER-IR) -> [PRED]-
 ;;;                                              ; (rel)->[OBJ] ("in the park" ->
 ;;;                                              ; (loc)->[PLACE]; "with the
 ;;;                                              ; telescope" -> (inst)->[OBJECT];
-;;;                                              ; "on monday" -> (time)->[PERIOD])
+;;;                                              ; "on monday" -> (time)->[PERIOD]);
+;;;                                              ; :adverbs = manner-adverb lemmas
+;;;                                              ; -> [PRED]-(manr)->[MANNER]
+;;;                                              ; ("runs quickly")
 ;;;   (:clause-type distinguishes a that-clause complement (:proposition) from an
 ;;;    infinitival (:situation); NIL for the matrix clause -- see complement-type-for.)
 ;;; A case (one filled thematic role):
@@ -181,6 +184,14 @@ lacks a graph-compatible `situation'.")
 (attr: ENTITY -> ATTRIBUTE). Adjectives outside the ATTRIBUTE branch (e.g. an
 age word) won't fit and are skipped with a warning; with *on-missing-type*
 :create an unknown adjective is created under ATTRIBUTE so it fits.")
+
+(defparameter *adverb-relation* 'cg::manr
+  "Relation linking a predicate to a manner adverb: [PRED]->(manr)->[MANNER]
+(manr: ACT -> MANNER). The adverbial analog of *adjective-relation*: PARSIFAL's
+ADVERB-ADJUNCT rule (our *grammar-extensions*) hangs a manner adverb off the
+clause as an `adv' daughter, and we emit it off the predicate like an adjective.
+With *on-missing-type* :create an unknown adverb (quickly) is created under
+MANNER so it fits.")
 
 (defparameter *possessive-relation* 'cg::poss
   "Relation linking a genitive possessor to the possessed noun:
@@ -513,6 +524,17 @@ clause pp daughter). Each becomes [PRED]-(rel)->[OBJ] in emit-clause."
         for ir = (pp-adjunct-ir pp seen)
         when ir collect ir))
 
+(defun clause-adverb-lemmas (node)
+  "Manner-adverb words on clause NODE -- the `adv' daughters our ADVERB-ADJUNCT
+grammar rule attached (e.g. QUICKLY in \"the man runs quickly\"). Only manner
+adverbs (PARSIFAL's `manner' feature) are collected; each becomes
+[PRED]-(manr)->[MANNER] in emit-clause, exactly as an adjective becomes
+[NOUN]-(attr)->[ADJ]."
+  (loop for adv in (ignore-errors (pa::daughters 'pa::adv node))
+        for w = (and adv (member 'pa::manner (ignore-errors (pa::fe adv)))
+                     (ignore-errors (pa::getr 'pa::word adv)))
+        when w collect w))
+
 (defun spec-tense (spec-node)
   "cgraph tense keyword (:past / :present / :future) from a PARSIFAL aux SPEC
 node's features, or NIL (e.g. a tenseless infinitive)."
@@ -575,7 +597,8 @@ so descend to it (or use NODE itself if it already is the COMP-S)."
           :cases  (loop for (cname filler gfunc) in (reverse (pa::getc 'pa::cases node))
                         collect (list :role cname :gfunc gfunc
                                       :filler (filler->ir filler seen)))
-          :adjuncts (clause-adjuncts node seen))))
+          :adjuncts (clause-adjuncts node seen)
+          :adverbs  (clause-adverb-lemmas node))))
 
 (defun parse->ir (node)
   "Build a clause IR from a PARSIFAL parse NODE. Flushes the open frame first
@@ -697,6 +720,10 @@ relation instead of the case's entity-typed relation."
     ;; predicate concept already exists.
     (dolist (adj (getf ir :adjuncts))
       (emit-adjunct pred-concept adj))
+    ;; Manner adverbs: [PRED]-(manr)->[MANNER], the adverbial analog of an
+    ;; adjective modifier ([NOUN]-(attr)->[ADJ]) -- reuse emit-modifier.
+    (dolist (adv (getf ir :adverbs))
+      (emit-modifier pred-concept *adverb-relation* adv))
     pred-concept))
 
 (defun emit-adjunct (pred-concept adj)

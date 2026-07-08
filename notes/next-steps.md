@@ -74,10 +74,15 @@
 > in/on/at by the object's type. adjunct-relation(prep,obj) in extract.lisp; added
 > telescope + monday to cgraph test-types. Extractor-only, not in EXTENSIONS.md.
 >
-> NEXT UP: remaining #5 -- ADVERBS (blocked on lexicon: manner adverbs quickly/
-> slowly aren't lexicalized; deictic here/now/there parse but get dropped by
-> non-licensing verbs -- the adverb path likely needs a grammar rule to attach
-> them, i.e. a real *grammar-extensions* addition). Anaphora (#12) deferred.
+> MANNER ADVERBS -- DONE (2026-07-07): SECOND grammar extension. "the man sees the
+> dog quickly ." -> [SEE]...(manr)->[QUICKLY]. Lexicon (quickly/slowly in
+> supplement.dict) + ADVERBS-ADJUNCT rule (*adverb-rules* IN SS-FINAL, our
+> *grammar-extensions*) + extractor (clause-adverb-lemmas -> emit-modifier w/ manr).
+> See parsifal EXTENSIONS.md #2. cg 22/22, parsifal 56/56.
+>
+> NEXT UP: DEICTIC adverbs (here/now/today/there -- lexicalized as pseudopropnoun
+> place/time nouns, land as stray VP np daughters, extractable like PP adjuncts,
+> extractor-only) round out #5. Then anaphora (#12, still deferred) or a new area.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
 priority order. Current state (2026-06-25): transitive clauses, control
@@ -188,18 +193,29 @@ New in extract.lisp: adjunct-relation(prep, obj) computes the relation (stored a
 `monday' (⊑ time-period) to cgraph test-types (monday is already a `time' noun in
 parsifal's dict). Extractor-only, no parser change -> NOT in EXTENSIONS.md. Test:
 extract-pp-adjunct-headless now covers loc + inst + time(obj) + time(prep). 21/21.
-STILL OPEN under #5: ADVERBS (see below -- those DO need lexicon + possibly a
-grammar rule to attach unlicensed adverbial adjuncts).
-
-ADVERBS are BLOCKED (same root cause as PP adjuncts), investigated 2026-06-27:
-manner adverbs (quickly/slowly) are NOT in the lexicon (dropped as unknown); and
-the deictic adverbs that ARE lexicalized (here/now/there) get DROPPED by a verb
-that doesn't license them ("the man sees the dog here ." -> only AGT/NEUT, no
-loc/time case, no mod) -- exactly like unlicensed PP adjuncts. So adverb->manr
-can't be exercised (the manr/loc relations are already in *case-role->relation*,
-so a verb that LICENSES a manner/loc case would map, but none in test-types does).
-To unblock: add manner adverbs to the lexicon AND grammar rules that attach
-unlicensed adverbial adjuncts (PARSIFAL side), then read them like adjectives.
+MANNER ADVERBS — DONE (2026-07-07): the SECOND grammar extension (after
+apposition). "the man sees the dog quickly ." -> [SEE]...(manr)->[QUICKLY]. Needed
+BOTH halves of an extension:
+  - LEXICON (parsifal supplement.dict): quickly/slowly as `(df ... (adv manner))'.
+    They were dropped as unknown; NB `df1' (Marcus's ago/later/very) is a DISABLED
+    definition (expands to NIL), so plain `df' is required.
+  - GRAMMAR (parsifal *adverb-rules*, our *grammar-extensions*): ADVERB-ADJUNCT IN
+    SS-FINAL [=adv] -> attach the adverb as an `adv' daughter of the clause
+    (modelled on gram5 PP-UNDER-S-1; default priority 10 beats VP-DONE at 20).
+    gram1-gram5 have NO adverb-attachment rule, so without it the adverb stalls
+    the parse.
+  - EXTRACTOR (extract.lisp): clause-adverb-lemmas reads the clause's manner `adv'
+    daughters; emit-clause emits [PRED]-(manr)->[MANNER] via emit-modifier
+    (*adverb-relation* = manr), the adverbial analog of an adjective's
+    [NOUN]-(attr)->[ADJ]. `quickly' isn't in test-types, so the test runs
+    :create (QUICKLY under MANNER), like the adjective test's BIG under ATTRIBUTE.
+Test: test/extract-adverb-headless.lisp. 22/22 headless; parsifal 56/56.
+See parsifal EXTENSIONS.md entry #2. Documented in EXTENSIONS.md since it IS a
+parser change (grammar rule + lexicon), unlike the extractor-only PP adjuncts.
+STILL OPEN under #5: DEICTIC adverbs (here/now/today/there) are lexicalized as
+pseudopropnoun place/time NOUNS and land as stray VP np daughters (NOT cases);
+extractable like PP adjuncts (walk non-case VP nps, place->loc / time->time) --
+an extractor-only follow-up. Non-manner adverb classes (degree, etc.) too.
 
 GENITIVES/POSSESSIVES (poss) — DONE (2026-07-01, parser + extractor). "the man's
 dog" -> [DOG:#]<-(poss)<-[MAN:#]; also proper-name and pronoun possessors. See the
