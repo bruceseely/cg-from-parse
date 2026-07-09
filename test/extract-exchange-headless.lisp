@@ -62,6 +62,21 @@
          (pay-pos  (and flat (search "(HAS-PART)→[PAY" flat)))
          (give-part (and pay-pos (subseq flat 0 pay-pos)))
          (pay-part  (and pay-pos (subseq flat pay-pos)))
+         ;; RECONCILIATION: the same sentence with the goods transfer stated
+         ;; EXPLICITLY as a relative clause ("a hamburger you give me today")
+         ;; must fold into the SAME single goods transfer -- render identically,
+         ;; with exactly one GIVE (not a duplicate of the synthesized one)
+         (rel-graph (%exchange-graph
+                     "i will gladly pay you tuesday for a hamburger you give me today ."))
+         (rel-text  (and rel-graph (cg-text rel-graph)))
+         (rel-gives (and rel-graph
+                         (count "GIVE"
+                                (remove nil
+                                        (mapcar (lambda (n)
+                                                  (and (typep n 'cg::concept)
+                                                       (string (cg::label (cg::concept-type n)))))
+                                                (cg::nodes rel-graph)))
+                                :test #'string-equal)))
          (pass
           (and flat pay-pos
                ;; promoted to an EXCHANGE of two (has-part) transfers
@@ -86,7 +101,11 @@
                ;; comma (after [TODAY]) separating it from the PAY block
                (search "[TODAY]," give-part)
                ;; parse-and-extract's returned graph PRINTS as the block form
-               (equal text printed))))
+               (equal text printed)
+               ;; reconciliation: explicit-transfer version renders identically
+               ;; to the inferred one, and has exactly ONE give (no duplicate)
+               (equal rel-text text)
+               (eql rel-gives 1))))
     (when verbose (format t "~&~a~%" text))
     (format t "~&extract-exchange-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
     pass))

@@ -722,15 +722,57 @@ carry no `exch' case, so this is false for them -- emit-exchange won't recurse."
        (member (getf ir :pred) *commercial-verbs*)
        (find 'pa::exch (getf ir :cases) :key (lambda (c) (getf c :role)))))
 
+(defparameter *goods-transfer-verbs* '(pa::give pa::sell pa::transfer pa::deliver)
+  "Predicates that, as a relative/complement clause on the goods NP, count as an
+EXPLICIT statement of the exchange's goods transfer -- so emit-exchange reconciles
+with such a clause (folds in the extra cases it carries, e.g. a time) instead of
+leaving it to be emitted as a duplicate, separately-floating transfer.")
+
+(defun goods-transfer-mod (goods-filler)
+  "If GOODS-FILLER (the exch NP) carries a relative clause that explicitly states
+the goods transfer -- a transfer verb whose object gap (a NEUT trace) is the goods
+itself -- return that clause IR; else NIL. (\"a hamburger you give me today\" ->
+the GIVE clause; \"a hamburger on the table\" -> NIL.)"
+  (find-if (lambda (m)
+             (and (eq (getf m :kind) :clause)
+                  (member (getf m :pred) *goods-transfer-verbs*)
+                  (find-if (lambda (c)
+                             (and (eq (getf c :role) 'pa::neut)
+                                  (eq (getf (getf c :filler) :kind) :trace)))
+                           (getf m :cases))))
+           (getf goods-filler :mods)))
+
 (defun emit-exchange (ir)
   "Promote a commercial-transaction clause to Fillmore's exchange frame (see the
 commentary above): an [EXCHANGE] with two reciprocal transfers linked by
 (has-part) -- a PAY (money, agent->recipient) and a GIVE (goods, recipient->agent,
 both frame-supplied). Times route by surface position; the manner adverb marks
-the paying. Returns the [EXCHANGE] concept, which becomes the graph root."
+the paying. Returns the [EXCHANGE] concept, which becomes the graph root.
+
+RECONCILIATION: when the goods NP itself carries an explicit transfer clause
+(\"a hamburger you give me today\"), we don't want two gives -- the synthesized
+one AND the parsed relative one. goods-transfer-mod detects it; we then STRIP it
+from the goods (so emit-filler won't emit it separately) and FOLD its
+frame-uninferable cases (its time, etc.) and adverbs into the synthesized goods
+transfer. Agent/recipient stay reciprocity-driven (reusing pay's participant
+nodes), so the two transfers still COREFER on the same [PERSON: I]/[PERSON: You]."
   (let* ((cases      (getf ir :cases))
          (exch-pos   (position 'pa::exch cases :key (lambda (c) (getf c :role))))
          (goods      (getf (nth exch-pos cases) :filler))
+         ;; an explicitly-stated goods transfer ("...a hamburger you give me today")
+         (xfer       (goods-transfer-mod goods))
+         ;; goods as the give's object, with that transfer stripped so emit-filler
+         ;; doesn't ALSO emit it as a separate, floating duplicate give
+         (goods-obj  (if xfer
+                         (list* :mods (remove xfer (getf goods :mods)) goods)
+                         goods))
+         ;; cases the explicit transfer adds that the frame can't infer (its time,
+         ;; a location, ...): everything but the core agt/dat/neut, which the
+         ;; reciprocity below already supplies from pay's (coreferring) nodes
+         (xfer-extra (and xfer (remove-if (lambda (c)
+                                            (member (getf c :role)
+                                                    '(pa::agt pa::dat pa::neut)))
+                                          (getf xfer :cases))))
          (agt        (getf (find 'pa::agt cases :key (lambda (c) (getf c :role))) :filler))
          (dat        (getf (find 'pa::dat cases :key (lambda (c) (getf c :role))) :filler))
          (pre-times  (loop for c in cases for i from 0
@@ -748,12 +790,15 @@ the paying. Returns the [EXCHANGE] concept, which becomes the graph root."
                                    (list (list :role 'pa::neut :filler money))
                                    pre-times)))
          ;; the goods transfer: you -give-> me, the goods, times after the goods
+         ;; (post-times) plus anything folded in from an explicit transfer clause
          (give-ir    (list :kind :clause :pred 'pa::give :node nil
+                           :adverbs (and xfer (getf xfer :adverbs))
                            :cases (append
                                    (when dat (list (list :role 'pa::agt :filler dat)))
                                    (when agt (list (list :role 'pa::dat :filler agt)))
-                                   (list (list :role 'pa::neut :filler goods))
-                                   post-times)))
+                                   (list (list :role 'pa::neut :filler goods-obj))
+                                   post-times
+                                   xfer-extra)))
          (exchange   (concept-for-node nil 'pa::exchange 'cg::event)))
     (flet ((link-part (part-concept)
              (let ((rel (cg::make-relation 'cg::has-part)))
