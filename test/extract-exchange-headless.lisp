@@ -85,8 +85,8 @@
          (sell-x (let ((g (%exchange-graph "you sell me a hamburger ."))) (and g (cg-text g))))
          (pass
           (and flat pay-pos
-               ;; promoted to an EXCHANGE of two (has-part) transfers
-               (search "[EXCHANGE]" flat)
+               ;; promoted to a COMMERCIAL-EXCHANGE of two (has-part) transfers
+               (search "[COMMERCIAL-EXCHANGE]" flat)
                (search "(HAS-PART)→[GIVE" flat)
                (search "(HAS-PART)→[PAY" flat)
                ;; GIVE (goods) transfer: you give me the hamburger today

@@ -27,10 +27,13 @@
 (in-package :cg-from-parse)
 
 (defun exchange-concept-p (concept)
-  "True if CONCEPT is an [EXCHANGE] -- the head of a promoted commercial graph."
+  "True if CONCEPT is the head of a promoted exchange graph -- an EXCHANGE or any
+subtype (COMMERCIAL-EXCHANGE). Name-based so it holds under both the live catalog
+(where commercial-exchange is a defined subtype of exchange) and the headless
+test catalog (where :create places it directly, not under exchange)."
   (and (typep concept 'cg::concept)
-       (string-equal (princ-to-string (cg::label (cg::concept-type concept)))
-                     "EXCHANGE")))
+       (search "EXCHANGE"
+               (string-upcase (princ-to-string (cg::label (cg::concept-type concept)))))))
 
 ;;; In cgraph's object model a binary relation's arcs are (DEST . SOURCES): the
 ;;; destination sits at the outarc (position 0, set by set-arc-from-relation) and

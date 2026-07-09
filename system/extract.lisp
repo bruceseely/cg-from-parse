@@ -834,7 +834,9 @@ nodes), so the two transfers still COREFER on the same buyer/seller concepts."
                                    (list (list :role 'pa::neut :filler goods-obj))
                                    post-times
                                    xfer-extra)))
-         (exchange   (concept-for-node nil 'pa::exchange 'cg::event)))
+         ;; the head is a COMMERCIAL-EXCHANGE (an exchange specialized so one
+         ;; transfer is a PAY); the general `exchange' is its supertype
+         (exchange   (concept-for-node nil 'pa::commercial-exchange 'cg::event)))
     (flet ((link-part (part-concept)
              (let ((rel (cg::make-relation 'cg::has-part)))
                (cg::add-arc-into-relation exchange rel)
