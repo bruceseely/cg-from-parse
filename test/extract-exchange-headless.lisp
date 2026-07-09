@@ -77,6 +77,12 @@
                                                        (string (cg::label (cg::concept-type n)))))
                                                 (cg::nodes rel-graph)))
                                 :test #'string-equal)))
+         ;; FILLMORE PERSPECTIVE PAYOFF: pay/buy/sell are three surface framings
+         ;; of ONE commercial event, so all three must render as the SAME
+         ;; [EXCHANGE] (buyer=I, seller=you, goods=hamburger, money implicit)
+         (pay-x  (let ((g (%exchange-graph "i pay you for a hamburger ."))) (and g (cg-text g))))
+         (buy-x  (let ((g (%exchange-graph "i buy a hamburger from you ."))) (and g (cg-text g))))
+         (sell-x (let ((g (%exchange-graph "you sell me a hamburger ."))) (and g (cg-text g))))
          (pass
           (and flat pay-pos
                ;; promoted to an EXCHANGE of two (has-part) transfers
@@ -105,7 +111,11 @@
                ;; reconciliation: explicit-transfer version renders identically
                ;; to the inferred one, and has exactly ONE give (no duplicate)
                (equal rel-text text)
-               (eql rel-gives 1))))
+               (eql rel-gives 1)
+               ;; perspective payoff: buy and sell yield the SAME exchange as pay
+               (stringp pay-x)
+               (equal buy-x pay-x)
+               (equal sell-x pay-x))))
     (when verbose (format t "~&~a~%" text))
     (format t "~&extract-exchange-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
     pass))

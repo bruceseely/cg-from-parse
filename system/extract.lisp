@@ -686,41 +686,63 @@ NODE, and return it."
         concept)))
 
 ;;; ---------------------------------------------------------------------------
-;;; Commercial-transaction frame (Fillmore): promote `pay' to an [EXCHANGE]
+;;; Commercial-transaction frame (Fillmore): promote pay/buy/sell to [EXCHANGE]
 ;;; ---------------------------------------------------------------------------
 ;;;
 ;;; A commercial verb doesn't name a flat single act -- it profiles ONE
 ;;; perspective on a two-sided exchange (goods one way, money the other), each
-;;; side a transfer sub-event with its own participants and its OWN time. So
-;;; rather than [PAY]-(agnt)(rcpt)(exch)(time)(time) -- which wrongly hangs BOTH
-;;; times on the paying -- we promote to:
+;;; side a transfer sub-event with its own participants and its OWN time. And
+;;; pay/buy/sell are three DIFFERENT perspectives on the SAME event (Fillmore's
+;;; commercial-transaction frame), foregrounding different participants:
+;;;
+;;;   "I pay you for a hamburger"          buyer=agt seller=dat  goods=exch
+;;;   "I buy a hamburger from you for $2"  buyer=agt seller=from  goods=neut money=for
+;;;   "you sell me a hamburger for $2"     seller=agt buyer=dat  goods=neut money=for
+;;;
+;;; *commercial-perspectives* maps each verb's surface cases to the four roles
+;;; (buyer, seller, goods, money); emit-exchange then builds the SAME two transfers
+;;; from those roles, so all three verbs yield an identical:
 ;;;
 ;;;   [EXCHANGE]-
-;;;     (has-part)->[PAY] -(agnt)->[I]   (rcpt)->[YOU] (obj)->[MONEY]     (time)->[TUESDAY]
-;;;     (has-part)->[GIVE]-(agnt)->[YOU] (rcpt)->[I]   (obj)->[HAMBURGER] (time)->[TODAY]
+;;;     (has-part)->[PAY] -(agnt)->[BUYER]  (rcpt)->[SELLER] (obj)->[MONEY]
+;;;     (has-part)->[GIVE]-(agnt)->[SELLER] (rcpt)->[BUYER]  (obj)->[GOODS]
 ;;;
-;;; The agents SWAP (reciprocity); [MONEY] and the whole [GIVE] transfer are
-;;; frame-supplied (the sentence states neither); and each time now lands on a
-;;; real sub-event, so `time' (situation->time-period) type-checks. Times route
-;;; by surface position -- the IR :cases are in fill = surface order, so a `time'
-;;; case BEFORE the `exch' goods case belongs to the payment and one AFTER it to
-;;; the goods transfer. Coreference falls out for free: the same "I"/"you" nodes
-;;; reused across both sub-clauses map to the same concepts (named-concept).
+;;; Money is frame-supplied ([MONEY]) unless the verb states it ("for $2"); the
+;;; whole reverse transfer is frame-supplied when unstated. Each time lands on a
+;;; real sub-event, so `time' (situation->time-period) type-checks; times route by
+;;; surface position around the goods (before -> payment, after -> goods transfer).
+;;; Coreference falls out for free: the same buyer/seller nodes, reused across both
+;;; sub-clauses, map to the same concepts (named-concept).
 ;;;
-;;; This is a frame-semantic enrichment layered ON TOP of a flat parse -- the
-;;; parser is untouched -- and so a departure recorded in parsifal/EXTENSIONS.md.
+;;; A frame-semantic enrichment layered ON TOP of a flat parse -- the parser is
+;;; untouched -- and so a departure recorded in parsifal/EXTENSIONS.md.
 
-(defparameter *commercial-verbs* '(pa::pay)
-  "Predicates promoted to the [EXCHANGE] frame (Fillmore commercial transaction).
-Start with `pay'; `buy'/`sell' can join once their case perspectives are mapped.")
+(defparameter *commercial-perspectives*
+  '((pa::pay  :buyer pa::agt :seller pa::dat    :goods pa::exch :money pa::neut)
+    (pa::buy  :buyer pa::agt :seller pa::source :goods pa::neut :money pa::exch)
+    (pa::sell :buyer pa::dat :seller pa::agt    :goods pa::neut :money pa::exch))
+  "Fillmore perspective per commercial verb: which surface case fills each of the
+four exchange roles. An absent case is frame-supplied -- e.g. money is implicit
+([MONEY]) unless the verb states it (pay's neut / buy&sell's `for'-exch), and the
+seller/buyer may simply be unstated. The `goods' case is also what commercial-
+clause-p keys on, and it's the case the promoted sub-clauses lack, so this map
+doubles as the recursion guard (pay's synthesized PAY has no exch; GIVE isn't a
+key).")
+
+(defun commercial-perspective (pred)
+  "The perspective plist for PRED (a pay/buy/sell IR predicate), or NIL."
+  (cdr (assoc pred *commercial-perspectives*)))
 
 (defun commercial-clause-p (ir)
-  "A clause IR to promote to an exchange: a commercial verb WITH a filled `exch'
-goods case to split the participants and times around. The promoted sub-clauses
-carry no `exch' case, so this is false for them -- emit-exchange won't recurse."
+  "A clause IR to promote to an exchange: a commercial verb WITH its perspective's
+goods case filled (the participants/times split around the goods). emit-exchange's
+synthesized sub-clauses (PAY without an exch, GIVE not a key) don't satisfy this,
+so it won't recurse."
   (and (eq (getf ir :kind) :clause)
-       (member (getf ir :pred) *commercial-verbs*)
-       (find 'pa::exch (getf ir :cases) :key (lambda (c) (getf c :role)))))
+       (let ((persp (commercial-perspective (getf ir :pred))))
+         (and persp
+              (find (getf persp :goods) (getf ir :cases)
+                    :key (lambda (c) (getf c :role)))))))
 
 (defparameter *goods-transfer-verbs* '(pa::give pa::sell pa::transfer pa::deliver)
   "Predicates that, as a relative/complement clause on the goods NP, count as an
@@ -743,24 +765,37 @@ the GIVE clause; \"a hamburger on the table\" -> NIL.)"
            (getf goods-filler :mods)))
 
 (defun emit-exchange (ir)
-  "Promote a commercial-transaction clause to Fillmore's exchange frame (see the
-commentary above): an [EXCHANGE] with two reciprocal transfers linked by
-(has-part) -- a PAY (money, agent->recipient) and a GIVE (goods, recipient->agent,
-both frame-supplied). Times route by surface position; the manner adverb marks
-the paying. Returns the [EXCHANGE] concept, which becomes the graph root.
+  "Promote a commercial-transaction clause (pay/buy/sell) to Fillmore's exchange
+frame (see the commentary above): read the verb's perspective to identify the
+buyer, seller, goods and money among its surface cases, then build the SAME two
+reciprocal transfers linked by (has-part) -- a PAY (money, buyer->seller) and a
+GIVE (goods, seller->buyer). Money is [MONEY] unless the verb states it; the
+reverse transfer is entirely frame-supplied when unstated. Times route by surface
+position around the goods; the manner adverb marks the paying. Returns the
+[EXCHANGE] concept, which becomes the graph root.
 
 RECONCILIATION: when the goods NP itself carries an explicit transfer clause
 (\"a hamburger you give me today\"), we don't want two gives -- the synthesized
 one AND the parsed relative one. goods-transfer-mod detects it; we then STRIP it
 from the goods (so emit-filler won't emit it separately) and FOLD its
 frame-uninferable cases (its time, etc.) and adverbs into the synthesized goods
-transfer. Agent/recipient stay reciprocity-driven (reusing pay's participant
-nodes), so the two transfers still COREFER on the same [PERSON: I]/[PERSON: You]."
+transfer. Buyer/seller stay reciprocity-driven (reusing the parse's participant
+nodes), so the two transfers still COREFER on the same buyer/seller concepts."
   (let* ((cases      (getf ir :cases))
-         (exch-pos   (position 'pa::exch cases :key (lambda (c) (getf c :role))))
-         (goods      (getf (nth exch-pos cases) :filler))
+         (persp      (commercial-perspective (getf ir :pred)))
+         (fill-of    (lambda (role)
+                       (and role (getf (find role cases :key (lambda (c) (getf c :role)))
+                                       :filler))))
+         ;; the four exchange roles, read off the verb's perspective
+         (buyer      (funcall fill-of (getf persp :buyer)))
+         (seller     (funcall fill-of (getf persp :seller)))
+         (goods      (funcall fill-of (getf persp :goods)))
+         (money      (or (funcall fill-of (getf persp :money))
+                         (list :kind :entity :node nil :lemma 'pa::money)))
+         (goods-role (getf persp :goods))
+         (goods-pos  (position goods-role cases :key (lambda (c) (getf c :role))))
          ;; an explicitly-stated goods transfer ("...a hamburger you give me today")
-         (xfer       (goods-transfer-mod goods))
+         (xfer       (and goods (goods-transfer-mod goods)))
          ;; goods as the give's object, with that transfer stripped so emit-filler
          ;; doesn't ALSO emit it as a separate, floating duplicate give
          (goods-obj  (if xfer
@@ -768,34 +803,34 @@ nodes), so the two transfers still COREFER on the same [PERSON: I]/[PERSON: You]
                          goods))
          ;; cases the explicit transfer adds that the frame can't infer (its time,
          ;; a location, ...): everything but the core agt/dat/neut, which the
-         ;; reciprocity below already supplies from pay's (coreferring) nodes
+         ;; reciprocity below already supplies from the (coreferring) nodes
          (xfer-extra (and xfer (remove-if (lambda (c)
                                             (member (getf c :role)
                                                     '(pa::agt pa::dat pa::neut)))
                                           (getf xfer :cases))))
-         (agt        (getf (find 'pa::agt cases :key (lambda (c) (getf c :role))) :filler))
-         (dat        (getf (find 'pa::dat cases :key (lambda (c) (getf c :role))) :filler))
+         ;; times route by surface position around the goods
          (pre-times  (loop for c in cases for i from 0
-                           when (and (eq (getf c :role) 'pa::time) (< i exch-pos)) collect c))
+                           when (and (eq (getf c :role) 'pa::time) goods-pos (< i goods-pos))
+                             collect c))
          (post-times (loop for c in cases for i from 0
-                           when (and (eq (getf c :role) 'pa::time) (> i exch-pos)) collect c))
-         (money      (list :kind :entity :node nil :lemma 'pa::money))
-         ;; the payment transfer: I -pay-> you, money, times before the goods
+                           when (and (eq (getf c :role) 'pa::time) goods-pos (> i goods-pos))
+                             collect c))
+         ;; the payment transfer: buyer -pay-> seller, money, times before the goods
          (pay-ir     (list :kind :clause :pred 'pa::pay :node (getf ir :node)
                            :tense (getf ir :tense) :aspect (getf ir :aspect)
                            :voice (getf ir :voice) :adverbs (getf ir :adverbs)
                            :cases (append
-                                   (when agt (list (list :role 'pa::agt :filler agt)))
-                                   (when dat (list (list :role 'pa::dat :filler dat)))
+                                   (when buyer  (list (list :role 'pa::agt :filler buyer)))
+                                   (when seller (list (list :role 'pa::dat :filler seller)))
                                    (list (list :role 'pa::neut :filler money))
                                    pre-times)))
-         ;; the goods transfer: you -give-> me, the goods, times after the goods
-         ;; (post-times) plus anything folded in from an explicit transfer clause
+         ;; the goods transfer: seller -give-> buyer, the goods, times after the
+         ;; goods (post-times) plus anything folded in from an explicit transfer
          (give-ir    (list :kind :clause :pred 'pa::give :node nil
                            :adverbs (and xfer (getf xfer :adverbs))
                            :cases (append
-                                   (when dat (list (list :role 'pa::agt :filler dat)))
-                                   (when agt (list (list :role 'pa::dat :filler agt)))
+                                   (when seller (list (list :role 'pa::agt :filler seller)))
+                                   (when buyer  (list (list :role 'pa::dat :filler buyer)))
                                    (list (list :role 'pa::neut :filler goods-obj))
                                    post-times
                                    xfer-extra)))
