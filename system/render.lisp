@@ -98,15 +98,18 @@ between the sub-events shown as coref leaves."
         (let ((d (cgfp-rel-dest r))) (when d (incf (gethash d counts 0))))))
     (with-output-to-string (out)
       (format out "~a-" (cg::format-node exchange))
-      (dolist (rel part-rels)
-        (let ((se (cgfp-rel-dest rel)))
-          (format out "~%   (~a)→~a-"
-                  (cgfp-rel-label rel)
-                  (cgfp-leaf se counts labels counter))
-          (dolist (r (cgfp-out-relations se))
-            (format out "~%      (~a)→~a"
-                    (cgfp-rel-label r)
-                    (cgfp-leaf (cgfp-rel-dest r) counts labels counter))))))))
+      ;; one block per (has-part) sub-event; in CG linear form every branch off a
+      ;; node except the last ends with a comma, so all but the final block do.
+      (loop for (rel . more) on part-rels
+            for se = (cgfp-rel-dest rel)
+            do (format out "~%   (~a)→~a-"
+                       (cgfp-rel-label rel)
+                       (cgfp-leaf se counts labels counter))
+               (dolist (r (cgfp-out-relations se))
+                 (format out "~%      (~a)→~a"
+                         (cgfp-rel-label r)
+                         (cgfp-leaf (cgfp-rel-dest r) counts labels counter)))
+               (when more (format out ","))))))
 
 (defun cg-text (graph)
   "Formatted CG text for GRAPH: the block renderer for a promoted [EXCHANGE],
@@ -120,3 +123,18 @@ just as format-cgraph does."
         (let ((result (concatenate 'string (render-exchange head) ".")))
           (if cg::*always-print-ascii-arrows* (cg::arrows-to-ascii result) result))
         (cg::format-cgraph graph))))
+
+;;; Route a graph's REPL/print representation through cg-text, so a value RETURNED
+;;; by parse-and-extract (not just sentence->cg-text) shows the block form for an
+;;; [EXCHANGE]. This REPLACES the engine's identically-specialized print-object
+;;; (cgraph/system/core/graph.lisp) -- but only its FORMATTING SOURCE changes:
+;;; cg-text is format-cgraph verbatim for every non-exchange graph, so all other
+;;; output (and the engine's own format tests) is byte-for-byte unchanged; only an
+;;; [EXCHANGE]-headed graph renders as blocks. We mirror the engine method's two
+;;; branches (*always-format-nodes* raw vs. the #<...> unreadable wrapper) exactly.
+(defmethod print-object ((object cg::graph) stream)
+  (cond (cg::*always-format-nodes*
+         (princ (cg-text object) stream))
+        (t
+         (print-unreadable-object (object stream :type t :identity nil)
+           (format stream "~a" (cg::flatten-cgraph (cg-text object)))))))

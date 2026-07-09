@@ -41,17 +41,22 @@
                        (asdf:system-source-directory :parsifal)))
 (pa::load-full-grammar)
 
-(defun %exchange-text (sentence &optional (on-missing :create))
-  "Parse SENTENCE and return its block-rendered CG text (via cg-text), or NIL."
+(defun %exchange-graph (sentence &optional (on-missing :create))
+  "Parse SENTENCE and return its extracted cgraph graph, or NIL."
   (when (pa::parse-sentence sentence
                             :initial-rule (intern "INITIAL-RULE" :parsifal))
     (let ((*on-missing-type* on-missing))
       (handler-bind ((warning #'muffle-warning))
-        (ignore-errors (cg-text (ir->cgraph (parse->ir pa::c))))))))
+        (ignore-errors (ir->cgraph (parse->ir pa::c)))))))
 
 (defun extract-exchange-headless-test (&optional (verbose t))
-  (let* ((text (%exchange-text
-                "i will gladly pay you tuesday for a hamburger today ."))
+  (let* ((graph (%exchange-graph
+                 "i will gladly pay you tuesday for a hamburger today ."))
+         (text (and graph (cg-text graph)))
+         ;; the value RETURNED by parse-and-extract prints via print-object; it
+         ;; must route through the block renderer, i.e. equal (cg-text graph)
+         (printed (and graph (let ((cg::*always-format-nodes* t))
+                               (princ-to-string graph))))
          (flat (and (stringp text) (remove #\Space (string-upcase text))))
          ;; split the block text at [PAY so we can check each transfer's contents
          (pay-pos  (and flat (search "(HAS-PART)→[PAY" flat)))
@@ -76,7 +81,12 @@
                ;; coreference: the SAME I and You appear (coref-marked) in BOTH
                ;; transfers -- the reciprocity of the exchange
                (search "[PERSON:I*"   give-part) (search "[PERSON:I*"   pay-part)
-               (search "[PERSON:YOU*" give-part) (search "[PERSON:YOU*" pay-part))))
+               (search "[PERSON:YOU*" give-part) (search "[PERSON:YOU*" pay-part)
+               ;; CG linear form: the first sub-event block ends with a branch
+               ;; comma (after [TODAY]) separating it from the PAY block
+               (search "[TODAY]," give-part)
+               ;; parse-and-extract's returned graph PRINTS as the block form
+               (equal text printed))))
     (when verbose (format t "~&~a~%" text))
     (format t "~&extract-exchange-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
     pass))
