@@ -1,5 +1,7 @@
 # cg-from-parse
 
+[![whole-stack tests](https://github.com/bruceseely/cg-from-parse/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/bruceseely/cg-from-parse/actions/workflows/tests.yml)
+
 Bridge layer that extracts **conceptual graphs** ([`cgraph`](../cgraph)) from
 **PARSIFAL** ([`parsifal`](../parsifal)) parse products.
 
