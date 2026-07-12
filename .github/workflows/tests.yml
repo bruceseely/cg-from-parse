@@ -1,0 +1,63 @@
+name: whole-stack tests
+
+# Runs the whole-stack gate (test/run-all-suites.sh) on a fresh Ubuntu VM:
+# parsifal (unit + integration), cgraph, and this extractor's headless suite,
+# each in its own SBCL process. Self-contained on three repos -- the gate runs
+# cgraph against its in-repo test-types catalog and never touches ~/.cgraph, so
+# cgraph-types is not needed here.
+#
+# NB: this triggers on pushes to cg-from-parse only. To catch a break introduced
+# by a push to parsifal or cgraph, add a small triggering workflow to those repos
+# too (or a repository_dispatch into this one).
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  whole-stack:
+    runs-on: ubuntu-latest
+    env:
+      # Make every checked-out repo ASDF-discoverable; ql:quickload falls back to
+      # ASDF for systems not in the Quicklisp dist (parsifal, cgraph, cg-from-parse).
+      CL_SOURCE_REGISTRY: '(:source-registry (:tree "${{ github.workspace }}") :inherit-configuration)'
+    steps:
+      - name: Checkout cg-from-parse
+        uses: actions/checkout@v4
+        with:
+          path: cg-from-parse
+
+      - name: Checkout parsifal
+        uses: actions/checkout@v4
+        with:
+          repository: bruceseely/parsifal
+          path: parsifal
+
+      - name: Checkout cgraph
+        uses: actions/checkout@v4
+        with:
+          repository: bruceseely/cgraph
+          path: cgraph
+
+      - name: Install SBCL
+        run: sudo apt-get update && sudo apt-get install -y sbcl
+
+      - name: Cache Quicklisp
+        uses: actions/cache@v4
+        with:
+          path: ~/quicklisp
+          key: quicklisp-${{ runner.os }}
+
+      - name: Bootstrap Quicklisp
+        run: |
+          if [ ! -f ~/quicklisp/setup.lisp ]; then
+            curl -sSL -o /tmp/quicklisp.lisp https://beta.quicklisp.org/quicklisp.lisp
+            sbcl --non-interactive --load /tmp/quicklisp.lisp \
+                 --eval '(quicklisp-quickstart:install)' \
+                 --eval '(ql-util:without-prompting (ql:add-to-init-file))'
+          fi
+
+      - name: Run whole-stack gate
+        run: bash cg-from-parse/test/run-all-suites.sh
