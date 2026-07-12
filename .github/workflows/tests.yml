@@ -52,14 +52,20 @@ jobs:
           path: ~/quicklisp
           key: quicklisp-${{ runner.os }}
 
-      - name: Bootstrap Quicklisp
+      - name: Bootstrap Quicklisp + SBCL init
         run: |
           if [ ! -f ~/quicklisp/setup.lisp ]; then
             curl -sSL -o /tmp/quicklisp.lisp https://beta.quicklisp.org/quicklisp.lisp
             sbcl --non-interactive --load /tmp/quicklisp.lisp \
-                 --eval '(quicklisp-quickstart:install)' \
-                 --eval '(ql-util:without-prompting (ql:add-to-init-file))'
+                 --eval '(quicklisp-quickstart:install)'
           fi
+          # Always (re)write ~/.sbclrc so it works on a Quicklisp cache hit too:
+          # load Quicklisp, and unlock the CL package -- parsifal and cgraph
+          # declare CL-package symbols (e.g. NTH as special, TYPE as a reader)
+          # that are package-locked by default. Mirrors the dev machine's ~/.sbclrc.
+          printf '%s\n' \
+            '(load (merge-pathnames "quicklisp/setup.lisp" (user-homedir-pathname)))' \
+            '(sb-ext:unlock-package :common-lisp)' > ~/.sbclrc
 
       - name: Run whole-stack gate
         run: bash cg-from-parse/test/run-all-suites.sh
