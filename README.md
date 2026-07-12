@@ -217,3 +217,25 @@ entry point:
 (load (asdf:system-relative-pathname :cg-from-parse "test/headless-runner.lisp"))
 (cg-from-parse::run-headless-interactive)
 ```
+
+**Whole-stack gate** (`test/run-all-suites.sh`) — since this extractor sits on
+top of both PARSIFAL and cgraph, a regression in either shows up here. This gate
+runs every suite in the stack, each in its own fresh SBCL process, for one
+combined pass/fail:
+
+```sh
+test/run-all-suites.sh        # ~33s; SBCL=/path overrides the binary
+```
+
+It covers, in isolation:
+
+- **parsifal** — unit suite (`pa::test-all`)
+- **parsifal-integration** — the grammar integration tests (parsifal's own
+  per-file runner)
+- **cgraph** — engine suite (`cg::test-all`), pointed at a throwaway temp type
+  catalog so your `~/.cgraph` is never touched
+- **cg-from-parse** — the headless integration tests above
+
+Separate processes because the suites share global mutable state — the cgraph
+type catalog, and parsifal's grammar/dictionary/parser globals — that
+cross-contaminates if they run in one image.
