@@ -28,18 +28,21 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: cg-from-parse
+          token: ${{ secrets.STACK_CHECKOUT_TOKEN }}
 
       - name: Checkout parsifal
         uses: actions/checkout@v4
         with:
           repository: bruceseely/parsifal
           path: parsifal
+          token: ${{ secrets.STACK_CHECKOUT_TOKEN }}
 
       - name: Checkout cgraph
         uses: actions/checkout@v4
         with:
           repository: bruceseely/cgraph
           path: cgraph
+          token: ${{ secrets.STACK_CHECKOUT_TOKEN }}
 
       - name: Install SBCL
         run: sudo apt-get update && sudo apt-get install -y sbcl
