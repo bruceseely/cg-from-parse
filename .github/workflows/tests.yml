@@ -28,7 +28,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: cg-from-parse
-          token: ${{ secrets.STACK_CHECKOUT_TOKEN }}
 
       - name: Checkout parsifal
         uses: actions/checkout@v4
