@@ -307,14 +307,21 @@ recursion path, used to break structural cycles (as ctree1 does)."
     ((wh-lemma-p (effective-lemma filler))
      (let ((wh (effective-lemma filler)))
        (list :kind :query :node filler :type-hint (wh-type wh) :wh wh)))
-    ;; A personal pronoun ("you" -- esp. the implicit imperative subject -- I,
-    ;; he, it, ...): an indexical individual [TYPE: Pronoun].
+    ;; A personal pronoun (I, he, it, ...). If the narrow anaphora resolver finds
+    ;; an antecedent ("the man believes that he sees ..." -> he = the man), it
+    ;; corefers with that node like a trace (emit-trace renders the *x/?x coref);
+    ;; otherwise it stays an indexical individual [TYPE: Pronoun] (e.g. deictic
+    ;; I/you, or an unresolved he).
     ((pronoun-lemma-p (effective-lemma filler))
-     (let ((p (effective-lemma filler)))
-       (list :kind :named :node filler
-             :name (string-capitalize (string p))
-             :type-hint (pronoun-type p)
-             :words (pa::node-words filler))))
+     (let* ((p    (effective-lemma filler))
+            (ante (anaphor-antecedent filler seen)))
+       (if ante
+           (list :kind :trace :binding ante :lemma (effective-lemma ante)
+                 :words (pa::node-words filler))
+           (list :kind :named :node filler
+                 :name (string-capitalize (string p))
+                 :type-hint (pronoun-type p)
+                 :words (pa::node-words filler)))))
     ;; Both clauses and NPs carry a `pred' in their case frame (an NP's pred is
     ;; its head noun -- cf. ctree's "PRED: BOY"). Distinguish by filled cases:
     ;; a predicate clause has them, a plain NP does not.
@@ -382,6 +389,89 @@ entity), or NIL."
 (defun pronoun-lemma-p (lemma)
   "True when LEMMA is a personal pronoun."
   (and (pronoun-type lemma) t))
+
+;;; --- Anaphora resolution (pronoun -> antecedent) --------------------------
+;;; PARSIFAL does NOT bind pronouns (unlike traces/relative-gaps/wh, which are
+;;; syntactic movement and arrive bound), so the extractor must pick the
+;;; antecedent itself. We resolve only ONE narrow, binding-theory-safe
+;;; configuration: a 3rd-person SUBJECT pronoun inside an embedded that-complement
+;;; corefers with the MATRIX subject ("the man believes that he sees the dog" ->
+;;; he = the man). The pronoun is free in its own clause, so this never violates
+;;; Principle B (a co-argument pronoun like "the man sees him" is left alone).
+;;; A resolved pronoun becomes a :trace IR bound to the antecedent node; emit-trace
+;;; then realizes the coreference (cross-context here -> *x/?x variables), exactly
+;;; as it does for a control/raising trace.
+
+(defvar *resolve-anaphora* t
+  "When true, attempt the narrow intra-sentence anaphora resolution above; a
+resolvable pronoun corefers with its antecedent, else it stays an indexical
+individual ([PERSON: He]). Deliberately conservative (one syntactic
+configuration, agreement-gated); set NIL to disable resolution entirely.")
+
+(defparameter *pronoun-gender*
+  '(("HE" . :male) ("HIM" . :male) ("SHE" . :female) ("HER" . :female))
+  "Personal-pronoun word -> the gender it REQUIRES of an antecedent. Only he/she
+(and their accusatives) carry gender; it/they/you/i are unconstrained here.")
+
+(defun pronoun-gender (lemma)
+  "Gender (:male/:female) a personal-pronoun LEMMA demands of its antecedent, else
+NIL (unconstrained)."
+  (and lemma (cdr (assoc (string-upcase (string lemma)) *pronoun-gender*
+                         :test #'string=))))
+
+(defun lemma-gender (lemma)
+  "Rough gender (:male/:female) for a noun LEMMA, read from its cgraph concept
+type's canonical graph (man/boy -> [MALE], woman/girl -> [FEMALE]); NIL when the
+type has no `sex' arc (dog, person) or is unknown. Heuristic and used only to
+BLOCK a resolution on a clear clash, never to force one. (Checks [FEMALE] first --
+it contains the substring MALE.)"
+  (let* ((name (and lemma (intern (string-upcase (string lemma)) :cg)))
+         (ct   (and name (ignore-errors (cg::get-concept-type name))))
+         (s    (and ct (ignore-errors (cg::canonical-graph-string ct)))))
+    (cond ((null s) nil)
+          ((search "[FEMALE]" s) :female)
+          ((search "[MALE]" s)   :male))))
+
+(defun number-feature (fe)
+  "Number (:sing/:plur) from a PARSIFAL feature list -- NS marks singular."
+  (if (member 'pa::ns fe) :sing :plur))
+
+(defun clause-subject-node (clause)
+  "The SUBJECT case filler of a PARSIFAL CLAUSE node (the case whose gfunc is
+SUBJ), or NIL."
+  (loop for (cname filler gfunc) in (ignore-errors (pa::getc 'pa::cases clause))
+        when (eq gfunc 'pa::subj) return filler))
+
+(defun anaphora-agree-p (pronoun ante)
+  "Do PRONOUN and candidate antecedent ANTE agree well enough to corefer? Both must
+be 3rd person and match in number, with no gender CLASH (a he/she whose required
+gender differs from the antecedent's known gender is rejected; unknown gender on
+either side is permissive)."
+  (let ((pfe (ignore-errors (pa::fe (ignore-errors (pa::head pronoun)))))
+        (afe (ignore-errors (pa::fe (ignore-errors (pa::head ante))))))
+    (and pfe afe
+         (member 'pa::n3p pfe) (member 'pa::n3p afe)
+         (eq (number-feature pfe) (number-feature afe))
+         (let ((pg (pronoun-gender (entity-lemma pronoun)))
+               (ag (lemma-gender   (entity-lemma ante))))
+           (or (null pg) (null ag) (eq pg ag))))))
+
+(defun anaphor-antecedent (pronoun-node seen)
+  "Antecedent NODE for PRONOUN-NODE under the narrow resolution above, or NIL to
+leave it an indexical. SEEN is filler->ir's ancestor path; for a pronoun that is
+the subject of an embedded complement it is (embedded-clause matrix-clause ...).
+We resolve iff *resolve-anaphora* is on, the pronoun is the SUBJECT of an embedded
+that-complement (so binding is safe), and it agrees with the matrix subject."
+  (when *resolve-anaphora*
+    (let ((embedded (first seen))
+          (matrix   (second seen)))
+      (when (and embedded matrix
+                 (clause-complement-form embedded)          ; embedded IS a complement
+                 (ignore-errors (pa::getc 'pa::cases matrix)) ; matrix is a clause
+                 (eq pronoun-node (clause-subject-node embedded)))
+        (let ((ante (clause-subject-node matrix)))
+          (when (and ante (anaphora-agree-p pronoun-node ante))
+            ante))))))
 
 (defun np-determiner (node)
   "Definiteness of an NP NODE from its features: :definite (the) / :indefinite

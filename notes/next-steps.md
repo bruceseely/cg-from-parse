@@ -405,24 +405,38 @@ individual of the head's own type in emit-filler). This is the FIRST non-Marcus
 grammar rule, so it lives in *grammar-extensions*. Works in subject and object
 position. See the DONE banner at the top for the full write-up.
 
-## 12. Anaphora (pronoun -> antecedent)  — DEFERRED (2026-06-27)
-Pronouns are already RECOGNIZED (pronoun-type -> indexical individuals:
-"the man sees him ." -> [SEE]-(agnt)->[MAN: #] (obj)->[PERSON: He];
-"... it ." -> [ENTITY: It]). RESOLVING them to antecedents is deferred -- it's a
-separate, fuzzy module with no parser support:
-- PARSIFAL does NOT bind pronouns: "the man sees him ." -> him has binding=NIL
-  (unlike traces/relative-gaps/wh, which are syntactic movement and come bound).
-- Reflexives aren't in the lexicon (himself/herself dropped), so even the easy
-  syntactically-bound case is unavailable.
-- Most anaphora is CROSS-sentence ("...the dog. it runs."), but we parse one
-  sentence at a time.
-- A real resolver needs gender/number agreement + salience/recency + binding
-  theory (e.g. in "the man sees him", `him' must NOT be the man), so a naive
-  nearest-NP heuristic is wrong. Not worth a fuzzy, untestable resolver now.
-If revisited: scope to a narrow intra-sentence pattern with a permissive binding
-("the man thinks he sees the dog"), gated and clearly heuristic; add reflexives
-to the lexicon for the clean bound case; or do resolution as a post-pass over a
-multi-sentence discourse once that's parsed.
+## 12. Anaphora (pronoun -> antecedent)  — PARTIALLY DONE (2026-07-15)
+DONE: the narrow, binding-theory-safe slice -- a 3rd-person SUBJECT pronoun inside
+an embedded that-complement corefers with the MATRIX subject.
+  "the man knows that he sees the dog ." ->
+    [KNOW]-(expr)->[MAN:#*x1] (stat)->[PROPOSITION:[SEE]-(agnt)->[MAN:?x1]
+                                                          (obj)->[DOG:#]]
+  "the woman knows that she sees the dog ." -> she = the woman (coref)
+Extractor-only (no parser/cgraph change): PARSIFAL does NOT bind pronouns, so the
+resolver lives in system/extract.lisp (anaphor-antecedent). It fires ONLY when the
+pronoun is the subject of an embedded complement clause (clause-complement-form
+non-nil) and the antecedent is the matrix subject -- so the pronoun is free in its
+own clause and Principle B holds automatically ("the man sees him ." leaves `him'
+an indexical: it is a co-argument of `the man'). A resolved pronoun becomes a
+:trace bound to the matrix-subject node, and the EXISTING emit-trace machinery
+realizes the coreference across the PROPOSITION context boundary as *x/?x, exactly
+like a control trace (so no new emission code). Agreement gates it:
+  - number + person (both must be 3rd-person; number-feature via PARSIFAL NS/NP);
+  - GENDER clash blocks -- he/she demand male/female (*pronoun-gender*), the
+    antecedent's gender is read from its cgraph type's canonical (sex) arc
+    (lemma-gender scans canonical-graph-string for [MALE]/[FEMALE], checking
+    [FEMALE] first since it contains MALE); unknown gender is permissive. So
+    "the woman knows that he sees ..." leaves `he' indexical [PERSON: He].
+Gated by *resolve-anaphora* (default T; NIL disables). Matrix verb is `know'
+(KNOW is a cgraph test-type; `believe' parses identically but has no concept type).
+Test test/extract-anaphora-headless.lisp (resolve he/she, gender-clash negative,
+same-clause negative, no-pronoun control). Whole stack green: cg 25/25, all 4
+suites PASS. Extractor-only, so NOT in parsifal EXTENSIONS.md.
+
+STILL OPEN under #12 (each its own follow-up): object-pronoun and plural (they/them)
+resolution; multiple candidates with salience/recency ranking; reflexives (not in
+the lexicon -- himself/herself dropped); and CROSS-sentence anaphora (needs
+multi-sentence discourse, which we don't parse yet).
 
 ## 10. Ergonomic driver  — DONE
 `cg-from-parse:parse-and-extract` (system/driver.lisp): string → cgraph graph.

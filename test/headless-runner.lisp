@@ -30,6 +30,7 @@
     ("apposition"   . extract-apposition-headless-test)
     ("pp-adjunct"   . extract-pp-adjunct-headless-test)
     ("deictic"      . extract-deictic-headless-test)
+    ("anaphora"     . extract-anaphora-headless-test)
     ("adverb"       . extract-adverb-headless-test)
     ("passive"      . extract-passive-headless-test)
     ("determiner"   . extract-determiner-headless-test)
