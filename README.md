@@ -53,6 +53,13 @@ per-construction rule-group selection. So it works right after
 `:on-missing` keyword binds `*on-missing-type*` (`:error` default / `:create` /
 `:top`) for out-of-ontology words.
 
+To check up front that your ontology provides the framework relations and types the
+extractor needs (rather than discovering a gap mid-sentence), call
+`(cg-from-parse:validate-ontology)` — it prints a per-construction report and
+returns `(values ok-p missing)`. This is the *output* scope of the pipeline; the
+*input* scope (a restricted, out-of-scope-rejecting grammar) lives in parsifal's
+grammar profiles. See `notes/scoping-and-ontology-contract.md`.
+
 ## Package boundary
 
 The `:cg-from-parse` package (nickname `:cfp`) uses only `:cl`. Parser and CG

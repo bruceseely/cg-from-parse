@@ -453,3 +453,10 @@ from the package. See test/extract-driver-headless.lisp.
   hit/meet but NOT eat/cake.
 - Out-of-ontology lemmas: `*on-missing-type*` (:error / :create / :top).
 - Headless run recipe is in each `test/extract-*-headless.lisp` header.
+- **Scoping the pipeline** — two composable scope surfaces: parsifal GRAMMAR
+  PROFILES (`load-grammar`/`register-grammar-profile`; a restricted profile REJECTS
+  out-of-scope input) and the cg-from-parse ONTOLOGY CONTRACT
+  (`*ontology-requirements*` + `validate-ontology`; the framework types/relations a
+  mounted ontology must provide, attributed per construction so it composes with a
+  grammar profile). Design doc: `notes/scoping-and-ontology-contract.md`. Both hooks
+  are in; next step that exercises the pair is a first real `:core` profile.

@@ -23,7 +23,8 @@
     symbol conflicts that :use-ing two large export sets would create.")
   (:export #:extract-graph
            #:parse-and-extract #:sentence->cg-text
-           #:ensure-grammar #:ensure-cgraph))
+           #:ensure-grammar #:ensure-cgraph
+           #:validate-ontology))
 
 (in-package :asdf-user)
 

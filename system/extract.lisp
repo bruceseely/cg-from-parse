@@ -390,6 +390,136 @@ entity), or NIL."
   "True when LEMMA is a personal pronoun."
   (and (pronoun-type lemma) t))
 
+;;; --- Ontology contract: the framework vocabulary the extractor requires ----
+;;; The extractor writes graphs over a FIXED set of cgraph relations and abstract
+;;; concept types (agnt/obj/loc/prop..., person/place/proposition...) that it names
+;;; structurally, independent of the input words. If the mounted ontology lacks one
+;;; of these, extraction fails mid-sentence (under *on-missing-type* :error) or
+;;; degrades. `validate-ontology' checks that contract UP FRONT and reports what is
+;;; missing, so a mismatched ontology is a loud, early diagnostic rather than a
+;;; surprise later. The contract is attributed per CONSTRUCTION so it composes with
+;;; grammar profiles: a scoped grammar that never parses (say) complements does not
+;;; require the complement types, so `validate-ontology' can check only the
+;;; constructions a profile actually uses (profile -> tags in *ontology-profiles*).
+;;;
+;;; OUT OF SCOPE on purpose: DOMAIN lexemes (see/man/pay/hamburger/...) -- covered
+;;; by whatever ontology you feed the text, with *on-missing-type* as the policy for
+;;; gaps; the self-provided `prop' relation (ensure-complement-relation creates it
+;;; if absent); and relation DEST types (place/manner/time-period), which a relation
+;;; definition already entails. This is the framework skeleton, not the lexicon.
+
+(defparameter *ontology-requirements*
+  '((:clause       :relations (agnt obj)      :concept-types (act person entity)
+     :desc "base predicate-argument clause (agent + object)")
+    (:ditransitive :relations (rcpt)          :concept-types ()
+     :desc "ditransitive recipient (give ... to X)")
+    (:proper-names :relations ()              :concept-types (place animal)
+     :desc "proper names typed by marker (person is covered by :clause)")
+    (:wh-questions :relations ()              :concept-types (place)
+     :desc "wh queried element (who/what -> person/entity; where -> place)")
+    (:pp-adjuncts  :relations (loc time inst) :concept-types ()
+     :desc "PP adjuncts + deictic adverbs (dest types place/time-period are entailed)")
+    (:modifiers    :relations (attr manr)     :concept-types ()
+     :desc "adjective (attr) and manner adverb (manr)")
+    (:possessive   :relations (poss)          :concept-types ()
+     :desc "genitive / possessive")
+    (:complements  :relations (stat expr)     :concept-types (proposition situation state)
+     :desc "clausal complements + stative experiencer (`prop' is self-provided)")
+    (:exchange     :relations (rcpt has-part) :concept-types (event)
+     :desc "commercial-exchange frame; its exchange/pay types are domain content, made on demand")
+    (:anaphora     :relations ()              :concept-types () :conventions (:gender-sex-arc)
+     :desc "pronoun -> antecedent resolution"))
+  "The framework relations and abstract concept types the extractor requires,
+attributed to the CONSTRUCTION that uses each (so a grammar profile can require a
+subset). Each entry: (TAG :relations (..) :concept-types (..) [:conventions (..)]
+:desc STRING). Labels are matched into the :cg package by name. Domain lexemes and
+the self-provided `prop' relation are deliberately excluded (see the section
+comment).")
+
+(defparameter *ontology-conventions*
+  '((:gender-sex-arc
+     . "anaphora gender agreement reads a type's canonical (sex)->[MALE]/[FEMALE] arc
+   (lemma-gender). An ontology that marks gender another way silently disables the
+   check -- resolution stays permissive, never wrong-by-force."))
+  "Structural conventions the extractor assumes of the ontology beyond the presence
+of named types/relations. Advisory: `validate-ontology' reports them but cannot
+mechanically verify them.")
+
+(defparameter *ontology-profiles*
+  '((:full . :all))
+  "Ontology profile -> the construction tags it requires (:all = every tag). Mirrors
+the parsifal grammar profiles; only :full ships (it needs everything). When a
+scoped grammar profile lands, register its tag subset here and
+`validate-ontology :profile <it>' checks just those constructions.")
+
+(defun construction-tags (&optional (profile :full))
+  "Construction tags required by ontology PROFILE (:all, or a list of tags).
+Errors, naming the known profiles, on an unknown one."
+  (let ((entry (assoc profile *ontology-profiles*)))
+    (if entry
+        (cdr entry)
+        (error "Unknown ontology profile ~s. Known: ~{~s~^ ~}"
+               profile (mapcar #'car *ontology-profiles*)))))
+
+(defun ontology-has-type-p (label)
+  "True when the loaded ontology defines concept type LABEL (matched by name into
+the :cg package)."
+  (and (ignore-errors
+         (cg::get-concept-type (intern (string-upcase (string label)) :cg)))
+       t))
+
+(defun ontology-has-relation-p (label)
+  "True when the loaded ontology defines relation type LABEL (matched by name into
+the :cg package)."
+  (and (ignore-errors
+         (cg::get-relation-type (intern (string-upcase (string label)) :cg)))
+       t))
+
+(defun convention-desc (key)
+  "Human-readable description of a structural convention KEY."
+  (or (cdr (assoc key *ontology-conventions*)) (string key)))
+
+(defun validate-ontology (&key (profile :full) (stream *standard-output*))
+  "Check the LOADED cgraph ontology against the framework vocabulary the extractor
+needs for PROFILE (default :full = every construction) and print a fidelity report
+to STREAM. Returns (values OK-P MISSING): OK-P is true when nothing required is
+missing; MISSING is a list of (TAG :relation|:concept-type LABEL). This is the
+up-front check that a mounted ontology can support extraction -- run it once at
+startup instead of discovering a gap mid-sentence. It covers only the framework
+skeleton (see the section comment): domain lexemes and the self-provided `prop'
+relation are out of scope."
+  (let ((tags (construction-tags profile))
+        (missing '())
+        (conv '()))
+    (format stream "~&Ontology contract check (profile ~s):~%" profile)
+    (dolist (entry *ontology-requirements*)
+      (destructuring-bind (tag &key relations concept-types conventions desc) entry
+        (when (or (eq tags :all) (member tag tags))
+          (when conventions (setf conv (union conv conventions)))
+          (let ((mr (remove-if #'ontology-has-relation-p relations))
+                (mt (remove-if #'ontology-has-type-p concept-types)))
+            (if (or mr mt)
+                (progn
+                  (setf missing
+                        (append missing
+                                (mapcar (lambda (r) (list tag :relation r)) mr)
+                                (mapcar (lambda (ty) (list tag :concept-type ty)) mt)))
+                  (format stream "  MISSING  ~a (~a):~@[ relations ~{~a~^ ~}~]~@[ types ~{~a~^ ~}~]~%"
+                          tag desc mr mt))
+                (format stream "  ok       ~a (~a)~%" tag desc))))))
+    (when conv
+      (format stream "~%Assumed structural conventions (advisory, not mechanically checked):~%")
+      (dolist (c conv)
+        (format stream "  ~a: ~a~%" c (convention-desc c))))
+    (terpri stream)
+    (if missing
+        (format stream "MISSING ~d required framework item(s) -- extraction will fail or ~
+                        degrade for the affected constructions.~%" (length missing))
+        (format stream "All required framework vocabulary present.~%"))
+    (format stream "(Domain lexemes and the self-provided `prop' relation are out of ~
+                     scope; see *on-missing-type*.)~%")
+    (values (null missing) missing)))
+
 ;;; --- Anaphora resolution (pronoun -> antecedent) --------------------------
 ;;; PARSIFAL does NOT bind pronouns (unlike traces/relative-gaps/wh, which are
 ;;; syntactic movement and arrive bound), so the extractor must pick the
