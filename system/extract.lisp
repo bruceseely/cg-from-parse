@@ -446,11 +446,19 @@ of named types/relations. Advisory: `validate-ontology' reports them but cannot
 mechanically verify them.")
 
 (defparameter *ontology-profiles*
-  '((:full . :all))
-  "Ontology profile -> the construction tags it requires (:all = every tag). Mirrors
-the parsifal grammar profiles; only :full ships (it needs everything). When a
-scoped grammar profile lands, register its tag subset here and
-`validate-ontology :profile <it>' checks just those constructions.")
+  '((:full . :all)
+    (:core . (:clause :ditransitive :pp-adjuncts :modifiers :proper-names)))
+  "Ontology profile -> the construction tags it requires (:all = every tag). Each
+profile is the OUTPUT-scope companion of the like-named parsifal grammar profile
+(the shared keyword is the contract): its tags are the constructions that grammar
+can parse and this extractor can emit, so `validate-ontology :profile <it>' checks
+exactly the ontology vocabulary that profile can exercise -- no more. :full needs
+everything; :core is the simple-declarative subset (basic clauses, ditransitives,
+locative/instrumental PP adjuncts, adjective + manner modifiers, proper names) --
+it omits complements, the exchange frame, possessives, and anaphora, so it does not
+require their types/relations or the gender convention. (Tags are per-construction:
+a profile that supports a construction even partially lists it -- :core does PP
+adjuncts locatively but not temporally, yet still lists :pp-adjuncts.)")
 
 (defun construction-tags (&optional (profile :full))
   "Construction tags required by ontology PROFILE (:all, or a list of tags).

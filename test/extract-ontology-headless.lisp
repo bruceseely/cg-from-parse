@@ -29,29 +29,46 @@
 
 (defun extract-ontology-headless-test (&optional (verbose t))
   (let* ((quiet (make-broadcast-stream))                 ; discard the report unless verbose
-         (stream (if verbose *standard-output* quiet)))
+         (stream (if verbose *standard-output* quiet))
+         (all-tags (mapcar #'car *ontology-requirements*))
+         (core-tags (construction-tags :core)))
     (multiple-value-bind (ok missing) (validate-ontology :profile :full :stream stream)
-      (let ((pass
-              (and
-               ;; 1. reference ontology satisfies the full contract
-               ok (null missing)
-               ;; 2. the detector discriminates (not an always-true rubber stamp)
-               (ontology-has-type-p 'person) (ontology-has-relation-p 'agnt)
-               (not (ontology-has-type-p 'definitely-not-a-real-type))
-               (not (ontology-has-relation-p 'definitely-not-a-real-relation))
-               ;; 3. profiles: :full known, unknown errors
-               (eq (construction-tags :full) :all)
-               (nth-value 1 (ignore-errors (construction-tags :no-such-profile)))
-               ;; 4. every manifest entry is well-formed
-               (every (lambda (entry)
-                        (destructuring-bind (tag &key relations concept-types
-                                                 conventions desc) entry
-                          (and (keywordp tag) (stringp desc)
-                               (or relations concept-types conventions))))
-                      *ontology-requirements*))))
-        (when verbose
-          (format t "~&validate-ontology :full -> ok=~a missing=~a~%" ok missing))
-        (format t "~&extract-ontology-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
-        pass))))
+      (multiple-value-bind (core-ok core-missing)
+          (validate-ontology :profile :core :stream stream)
+        (let ((pass
+                (and
+                 ;; 1. reference ontology satisfies the full contract
+                 ok (null missing)
+                 ;; 2. the detector discriminates (not an always-true rubber stamp)
+                 (ontology-has-type-p 'person) (ontology-has-relation-p 'agnt)
+                 (not (ontology-has-type-p 'definitely-not-a-real-type))
+                 (not (ontology-has-relation-p 'definitely-not-a-real-relation))
+                 ;; 3. profiles: :full known, unknown errors
+                 (eq (construction-tags :full) :all)
+                 (nth-value 1 (ignore-errors (construction-tags :no-such-profile)))
+                 ;; 4. every manifest entry is well-formed
+                 (every (lambda (entry)
+                          (destructuring-bind (tag &key relations concept-types
+                                                   conventions desc) entry
+                            (and (keywordp tag) (stringp desc)
+                                 (or relations concept-types conventions))))
+                        *ontology-requirements*)
+                 ;; 5. the :core ontology profile composes with the :core grammar:
+                 ;; its tags are a STRICT, PROPER subset of the full construction
+                 ;; set (it omits complements/exchange/anaphora/possessive), and the
+                 ;; reference ontology satisfies it -- so a :core deployment needs
+                 ;; strictly less ontology than :full.
+                 (listp core-tags)
+                 (subsetp core-tags all-tags)
+                 (set-difference all-tags core-tags)          ; proper subset (something omitted)
+                 (not (member :complements core-tags))
+                 (not (member :anaphora core-tags))
+                 core-ok (null core-missing))))
+          (when verbose
+            (format t "~&validate-ontology :full -> ok=~a missing=~a~%" ok missing)
+            (format t "~&validate-ontology :core -> ok=~a missing=~a (tags ~a)~%"
+                    core-ok core-missing core-tags))
+          (format t "~&extract-ontology-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
+          pass)))))
 
 (extract-ontology-headless-test)

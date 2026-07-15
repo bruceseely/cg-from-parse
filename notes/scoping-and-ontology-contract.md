@@ -48,10 +48,17 @@ in-scope sentences get through.
 **Rule groups are not freely detachable.** PARSIFAL is a deterministic wait-and-see
 parser driven by rule priorities and packets; groups have dependencies (`VP-NP`
 binding, `INITIAL-RULE` packet dispatch, the diagnostic rules). So a profile must be
-a **coherent** subset, and each new profile needs its own regression test. No scoped
-subsets ship yet on purpose — the hook is in place so adding one later is a single
-`register-grammar-profile` call plus a test. See
+a **coherent** subset, and each new profile needs its own regression test — an
+*incoherent* subset does not reject cleanly, it ERRORs (drop `*quantifier-rules*` and
+a live rule still refers to `QUANT-DONE`). See
 `parsifal/test/integration/gram1-grammar-profile-test.lisp`.
+
+**`:core` — the first scoped profile** (`*core-grammar*`). Simple declaratives only:
+noun phrases (det + adjective), transitive **and** ditransitive clauses, pronouns,
+proper names, locative/instrumental PP adjuncts, and manner adverbs. It **rejects**
+clausal complements, relative clauses, wh-inversion, genitives, apposition, and
+numbers/quantifiers. It is the input-scope companion of cg-from-parse's `:core`
+ontology profile (next section) — the shared keyword is the contract.
 
 ---
 
@@ -85,9 +92,22 @@ check instead.
 The manifest is keyed by **construction**, and `*ontology-profiles*` maps a profile
 to the construction tags it needs. So a scoped grammar profile that can never parse
 complements does not require the complement types, and
-`validate-ontology :profile :core` would check only what `:core` can actually
-produce. The grammar profile (§1) and the ontology profile are two halves of one
+`validate-ontology :profile :core` checks only what `:core` can actually produce.
+The grammar profile (§1) and the ontology profile are two halves of one
 `(input-scope, output-scope)` deployment decision.
+
+**`:core` ships**, wired to match the `:core` grammar:
+
+```lisp
+(:core . (:clause :ditransitive :pp-adjuncts :modifiers :proper-names))
+```
+
+a **proper subset** of `:full` — it omits `:complements`, `:exchange`, `:possessive`,
+and `:anaphora`, so a `:core` deployment needs strictly less ontology (no
+`proposition`/`situation`/`state`, no `has-part`, no `poss`, and not the gender
+`(sex)` convention). Tags are per-construction, so a profile that supports a
+construction even partially lists it (`:core` does PP adjuncts locatively but not
+temporally, yet still lists `:pp-adjuncts`).
 
 ### Out of scope by design
 
@@ -126,10 +146,11 @@ is future work. Test: `test/extract-ontology-headless.lisp`.
 
 ## Status
 
-- Grammar-profile hook: **done** (parsifal), `:full`/`:marcus` ship; no scoped
-  subset yet.
-- Ontology contract + `validate-ontology`: **done** (cg-from-parse), profile-aware,
-  `:full` only.
-- Both hooks are in place to compose. The natural next step that exercises the pair
-  is a first real `:core` grammar profile wired to an `*ontology-profiles*` tag
-  subset.
+- Grammar-profile hook: **done** (parsifal). Profiles: `:full`, `:marcus`, `:core`.
+- Ontology contract + `validate-ontology`: **done** (cg-from-parse), profile-aware.
+  Profiles: `:full`, `:core`.
+- `:core` demonstrates the pair end to end: the grammar rejects out-of-scope input
+  and the ontology profile requires a strict subset of the framework vocabulary.
+- Next: additional profiles as use cases appear (each = a coherent grammar subset +
+  its ontology tags + a test); and closing the under-declaration gap in
+  `validate-ontology` via runtime capture.
