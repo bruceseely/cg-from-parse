@@ -150,6 +150,25 @@ NIL. Matched by name so a :parsifal or :cl word symbol both resolve."
        (cdr (assoc (string-upcase (string prep-word)) *preposition->relation*
                    :test #'string=))))
 
+(defparameter *deictic-relation-features*
+  '((pa::place . cg::loc)
+    (pa::time  . cg::time))
+  "PARSIFAL noun-feature -> cgraph relation for a DEICTIC pseudopropnoun adverb
+(here/there -> place -> `loc'; a bare time deictic -> time -> `time'). These are
+lexicalized as pseudopropnoun place/time NOUNS (defs-dictionary.dict), so PARSIFAL
+drops them into the VP as stray `np' daughters -- not cases, not PPs -- and the
+extractor walks them (clause-deictic-adjuncts) like a PP adjunct. (Most time
+deictics -- today/now -- instead arrive wrapped in a synthetic `during' PP and come
+through clause-adjuncts; this covers a place deictic and any bare time one.)")
+
+(defun deictic-relation (np)
+  "cgraph adjunct relation for a deictic pseudopropnoun NP (here/there -> loc, a
+time deictic -> time), or NIL if NP's head is not a place/time pseudopropnoun."
+  (let ((fe (ignore-errors (pa::fe (ignore-errors (pa::head np))))))
+    (when (and fe (member 'pa::pseudopropnoun fe))
+      (loop for (feat . rel) in *deictic-relation-features*
+            when (member feat fe) return rel))))
+
 (defun complement-relation-for (pred-concept filler)
   "Relation to link PRED-CONCEPT to its clausal complement FILLER. A stative
 predicate whose complement is a PROPOSITION (a that-clause) uses `stat'
@@ -532,6 +551,23 @@ clause pp daughter). Each becomes [PRED]-(rel)->[OBJ] in emit-clause."
         for ir = (pp-adjunct-ir pp seen)
         when ir collect ir))
 
+(defun clause-deictic-adjuncts (node seen)
+  "Adjunct IRs for DEICTIC pseudopropnoun adverbs (here/there/...) that PARSIFAL
+drops into the VP as stray `np' daughters. Unlike a licensed argument these are NOT
+cases (no verb slot licenses them) and unlike a PP adjunct they carry no
+preposition, so neither clause->ir's cases nor clause-adjuncts sees them. We walk
+the VP's `np' daughters, skip the ones already consumed as cases (the object), and
+turn each remaining place/time deictic into a bare adjunct IR (:relation from
+deictic-relation, no :prep) -- emit-adjunct then links it off the predicate exactly
+like a PP adjunct: \"the man sees the dog here .\" -> [SEE]...(loc)->[HERE]."
+  (let* ((vp (ignore-errors (pa::daughter 'pa::vp node)))
+         (case-fillers (mapcar #'second (ignore-errors (pa::getc 'pa::cases node)))))
+    (loop for np in (ignore-errors (pa::daughters 'pa::np vp))
+          for rel = (and (not (member np case-fillers :test #'equal))
+                         (deictic-relation np))
+          when rel
+            collect (list :prep nil :relation rel :filler (filler->ir np seen)))))
+
 (defun clause-adverb-lemmas (node)
   "Manner-adverb words on clause NODE -- the `adv' daughters our ADVERB-ADJUNCT
 grammar rule attached (e.g. QUICKLY in \"the man runs quickly\"). Only manner
@@ -605,7 +641,8 @@ so descend to it (or use NODE itself if it already is the COMP-S)."
           :cases  (loop for (cname filler gfunc) in (reverse (pa::getc 'pa::cases node))
                         collect (list :role cname :gfunc gfunc
                                       :filler (filler->ir filler seen)))
-          :adjuncts (clause-adjuncts node seen)
+          :adjuncts (append (clause-adjuncts node seen)
+                            (clause-deictic-adjuncts node seen))
           :adverbs  (clause-adverb-lemmas node))))
 
 (defun parse->ir (node)

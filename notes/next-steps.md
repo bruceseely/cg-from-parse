@@ -80,9 +80,30 @@
 > *grammar-extensions*) + extractor (clause-adverb-lemmas -> emit-modifier w/ manr).
 > See parsifal EXTENSIONS.md #2. cg 22/22, parsifal 56/56.
 >
-> NEXT UP: DEICTIC adverbs (here/now/today/there -- lexicalized as pseudopropnoun
-> place/time nouns, land as stray VP np daughters, extractable like PP adjuncts,
-> extractor-only) round out #5. Then anaphora (#12, still deferred) or a new area.
+> DEICTIC adverbs -- DONE (2026-07-15), extractor-only, rounding out #5.
+>   "the man sees the dog here ."  -> [SEE]...(loc)->[HERE]
+>   "the man sees the dog there ." -> [SEE]...(loc)->[THERE]
+>   "the man sees the dog today ." -> [SEE]...(time)->[TODAY]   (already worked)
+>   "the man sees the dog now ."   -> [SEE]...(time)->[NOW]     (already worked)
+> Marcus's dictionary already lexicalizes these as pseudopropnoun place/time NOUNS
+> (defs-dictionary.dict), so NO grammar change -- purely extractor. Two landing
+> spots (found by probing, not assumed): TIME deictics (today/now) are wrapped by
+> PARSIFAL in a synthetic `during' PP, so the existing PP-adjunct path
+> (clause-adjuncts) ALREADY emitted them as (time) -- no work needed. PLACE deictics
+> (here/there) land as a stray `np' daughter of the VP -- not a case, not a PP -- so
+> nothing walked them. NEW extractor bits (system/extract.lisp): *deictic-relation-
+> features* (pa::place->loc, pa::time->time), deictic-relation (relation for a
+> pseudopropnoun np by its head feature), and clause-deictic-adjuncts (walk the VP's
+> non-case `np' daughters, turn each place/time deictic into a bare adjunct IR with
+> :prep NIL -- emit-adjunct then links it off the predicate exactly like a PP
+> adjunct). Wired into clause->ir's :adjuncts (append after clause-adjuncts).
+> here/there added to cgraph test-types (both ⊑ place) so here/there run strict
+> (:error); today/now use :create (deictic, not test-types), like the manner-adverb
+> test's `quickly'. Test test/extract-deictic-headless.lisp. Whole stack green
+> (run-all-suites.sh): cg 24/24, parsifal + parsifal-integration + cgraph all PASS.
+> Extractor-only, so NOT in parsifal EXTENSIONS.md (no parser change).
+>
+> NEXT UP: anaphora (#12, still deferred) or a new area.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
 priority order. Current state (2026-06-25): transitive clauses, control
@@ -212,10 +233,9 @@ BOTH halves of an extension:
 Test: test/extract-adverb-headless.lisp. 22/22 headless; parsifal 56/56.
 See parsifal EXTENSIONS.md entry #2. Documented in EXTENSIONS.md since it IS a
 parser change (grammar rule + lexicon), unlike the extractor-only PP adjuncts.
-STILL OPEN under #5: DEICTIC adverbs (here/now/today/there) are lexicalized as
-pseudopropnoun place/time NOUNS and land as stray VP np daughters (NOT cases);
-extractable like PP adjuncts (walk non-case VP nps, place->loc / time->time) --
-an extractor-only follow-up. Non-manner adverb classes (degree, etc.) too.
+DEICTIC adverbs (here/there -> loc, today/now -> time) -- DONE (2026-07-15),
+extractor-only; see the DEICTIC banner at the top of this file.
+STILL OPEN under #5: non-manner adverb classes (degree, etc.).
 
 GENITIVES/POSSESSIVES (poss) — DONE (2026-07-01, parser + extractor). "the man's
 dog" -> [DOG:#]<-(poss)<-[MAN:#]; also proper-name and pronoun possessors. See the
