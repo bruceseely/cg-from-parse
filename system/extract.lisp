@@ -108,6 +108,7 @@ created (see *on-missing-type*). All case relations require an ACT source.")
 state (know/believe), not an act/event. States take expr/stat where acts take
 agnt/prop. NIL if the catalog has no STATE type or the concept type is a bare
 string (an out-of-ontology lemma)."
+  (note-type-label 'cg::state)
   (let ((state (ignore-errors (cg::get-concept-type 'cg::state)))
         (ct    (cg::concept-type pred-concept)))
     (and state (not (typep ct 'string)) (cg::supertype-p ct state))))
@@ -445,6 +446,14 @@ comment).")
 of named types/relations. Advisory: `validate-ontology' reports them but cannot
 mechanically verify them.")
 
+(defparameter *self-provided-relations*
+  '(cg::prop)
+  "Relation labels the extractor EMITS but PROVIDES itself when the ontology lacks
+them: `ensure-complement-relation' creates `prop' (the generic clausal-complement
+relation) on demand. They are therefore neither required of the ontology (absent
+from *ontology-requirements*, so validate-ontology does not flag them) nor an
+under-declaration (the runtime-capture self-check excludes them).")
+
 (defparameter *ontology-profiles*
   '((:full . :all)
     (:core . (:clause :ditransitive :pp-adjuncts :modifiers :proper-names)))
@@ -527,6 +536,69 @@ relation are out of scope."
     (format stream "(Domain lexemes and the self-provided `prop' relation are out of ~
                      scope; see *on-missing-type*.)~%")
     (values (null missing) missing)))
+
+;;; --- Under-declaration self-check: capture what an extraction emits ---------
+;;; validate-ontology proves the manifest names only vocabulary the ontology HAS.
+;;; This is the other direction -- prove the manifest DECLARES every framework label
+;;; the extractor actually EMITS, so adding an emission without a manifest entry is
+;;; caught. RELATIONS are captured automatically: every relation the extractor mints
+;;; goes through `make-relation*' (the one chokepoint) and relations are always
+;;; framework (never lemma-derived). Framework concept TYPES are captured at their
+;;; literal sites -- type-hints, the complement wrapper, the predicate/exchange root,
+;;; the stative STATE probe -- via `note-type-label'. The lemma-derived `concept-for'
+;;; path is deliberately NOT captured: those are DOMAIN types (out of scope), and
+;;; skipping it also keeps relation dest-types -- entailed, hence excluded from the
+;;; manifest -- from being flagged. Capture is active only while the two specials are
+;;; bound (see test/extract-ontology-capture-headless.lisp); otherwise every hook is
+;;; a no-op. NB this covers the current emission chokepoints, not arbitrary future
+;;; sites -- a new framework TYPE introduced at a fresh site would need its own
+;;; note-type-label (relations, sharing one chokepoint, need nothing).
+
+(defvar *captured-relations* nil
+  "When bound to a hash-table, `make-relation*' records each emitted relation label
+here (normalized to :cg) for the under-declaration self-check; NIL disables capture.")
+(defvar *captured-types* nil
+  "When bound to a hash-table, `note-type-label' records each emitted FRAMEWORK
+concept-type label here; NIL disables capture.")
+
+(defun label->cg (x)
+  "Normalize a type/relation label X (symbol or string) to a :cg symbol, so labels
+from the manifest, the extractor, and cgraph compare uniformly."
+  (and x (intern (string-upcase (string x)) :cg)))
+
+(defun note-relation-label (label)
+  "Record LABEL as an emitted relation when capture is active; return LABEL."
+  (when (and *captured-relations* label)
+    (setf (gethash (label->cg label) *captured-relations*) t))
+  label)
+
+(defun note-type-label (label)
+  "Record LABEL as an emitted FRAMEWORK concept type when capture is active; return
+LABEL. Call only where a framework type is named literally (type-hint / wrapper /
+root), never the lemma-derived `concept-for' path (which mints DOMAIN types)."
+  (when (and *captured-types* label)
+    (setf (gethash (label->cg label) *captured-types*) t))
+  label)
+
+(defun make-relation* (label)
+  "cg::make-relation, additionally recording LABEL for the under-declaration
+self-check (a no-op when capture is off). The single chokepoint every extractor
+relation passes through, so the manifest's relation set can be checked against what
+an extraction actually emits."
+  (note-relation-label label)
+  (cg::make-relation label))
+
+(defun manifest-relations ()
+  "All relation labels declared across *ontology-requirements* (normalized :cg)."
+  (remove-duplicates
+   (mapcan (lambda (e) (mapcar #'label->cg (getf (cdr e) :relations)))
+           *ontology-requirements*)))
+
+(defun manifest-concept-types ()
+  "All concept-type labels declared across *ontology-requirements* (normalized :cg)."
+  (remove-duplicates
+   (mapcan (lambda (e) (mapcar #'label->cg (getf (cdr e) :concept-types)))
+           *ontology-requirements*)))
 
 ;;; --- Anaphora resolution (pronoun -> antecedent) --------------------------
 ;;; PARSIFAL does NOT bind pronouns (unlike traces/relative-gaps/wh, which are
@@ -1101,9 +1173,10 @@ nodes), so the two transfers still COREFER on the same buyer/seller concepts."
                                    xfer-extra)))
          ;; the head is a COMMERCIAL-EXCHANGE (an exchange specialized so one
          ;; transfer is a PAY); the general `exchange' is its supertype
-         (exchange   (concept-for-node nil 'pa::commercial-exchange 'cg::event)))
+         (exchange   (progn (note-type-label 'cg::event)
+                            (concept-for-node nil 'pa::commercial-exchange 'cg::event))))
     (flet ((link-part (part-concept)
-             (let ((rel (cg::make-relation 'cg::has-part)))
+             (let ((rel (make-relation* 'cg::has-part)))
                (cg::add-arc-into-relation exchange rel)
                (cg::set-arc-from-relation rel part-concept))))
       (link-part (emit-clause pay-ir))
@@ -1118,6 +1191,7 @@ relation instead of the case's entity-typed relation. A commercial-transaction
 clause (`pay') is instead promoted to an [EXCHANGE] frame (see emit-exchange)."
   (when (commercial-clause-p ir)
     (return-from emit-clause (emit-exchange ir)))
+  (note-type-label *predicate-root*)
   (let ((pred-concept (concept-for-node (getf ir :node) (getf ir :pred) *predicate-root*)))
     ;; Carry tense/aspect onto the predicate concept (not shown by the linear
     ;; formatter, but stored for the realizer / queries).
@@ -1133,7 +1207,7 @@ clause (`pay') is instead promoted to an [EXCHANGE] frame (see emit-exchange)."
                             (complement-relation-for pred-concept filler)
                             (case-relation-for pred-concept role))))
         (when rel-label
-          (let* ((relation  (cg::make-relation rel-label))
+          (let* ((relation  (make-relation* rel-label))
                  (dest-type (cg::dest-type (cg::relation-type relation)))
                  (filler-concept (emit-filler filler dest-type)))
             (when filler-concept
@@ -1171,7 +1245,7 @@ relation's dest, so an adjunct never aborts the extraction."
     (if (null rel-label)
         (warn "cg-from-parse: PP adjunct (~a ...) dropped: no relation mapped for preposition"
               (getf adj :prep))
-        (let* ((relation    (cg::make-relation rel-label))
+        (let* ((relation    (make-relation* rel-label))
                (dest-type   (cg::dest-type (cg::relation-type relation)))
                (obj-concept (emit-filler (getf adj :filler) dest-type)))
           (when obj-concept
@@ -1195,6 +1269,7 @@ set-arc-from-relation, so we can decide before mutating the graph."
   "A query (requested) concept for a wh-question gap: a generic concept of
 TYPE-HINT carrying a fresh query variable (*x), so the result is a runnable
 query pattern (cgraph's query engine solves for the variable). Reused per node."
+  (note-type-label type-hint)
   (or (and node (gethash node *node->concept*))
       (let* ((ctype   (or (ignore-errors (cg::get-concept-type type-hint))
                           cg::*concept-type-top*))
@@ -1206,6 +1281,7 @@ query pattern (cgraph's query engine solves for the variable). Reused per node."
 (defun named-concept (type-hint name node)
   "A named-individual concept, [TYPE-HINT: NAME] -- reusing NODE's already-emitted
 concept if present (coreference)."
+  (note-type-label type-hint)
   (or (and node (gethash node *node->concept*))
       (let* ((ctype   (or (ignore-errors (cg::get-concept-type type-hint))
                           cg::*concept-type-top*))
@@ -1265,7 +1341,7 @@ concepts, e.g. an unbound trace)."
   "Emit [SOURCE]->(REL)->[LEMMA] -- e.g. a noun's adjective. Skips (with a
 warning) when LEMMA's type doesn't fit the relation's dest, so an out-of-branch
 modifier never aborts the extraction."
-  (let* ((relation   (cg::make-relation rel-label))
+  (let* ((relation   (make-relation* rel-label))
          (dest-type  (cg::dest-type (cg::relation-type relation)))
          (mod-concept (concept-for lemma dest-type)))
     (if (arc-dest-ok-p mod-concept relation)
@@ -1281,7 +1357,7 @@ modifier never aborts the extraction."
 ENTITY dest. Reverse of emit-modifier (there the noun is the source). Skips with a
 warning when the possessor's type doesn't fit `poss''s source, so a non-animate
 possessor never aborts the extraction."
-  (let* ((relation   (cg::make-relation *possessive-relation*))
+  (let* ((relation   (make-relation* *possessive-relation*))
          (src-type   (car (cg::source-types (cg::relation-type relation))))
          (poss-concept (emit-filler poss-ir src-type)))
     (when poss-concept
@@ -1315,7 +1391,8 @@ from inside back out to an enclosing concept must cross the context boundary
          (pred-concept (emit-clause ir))
          (graph        (cg::make-cgraph pred-concept cg::*context*))
          (referent     (cg::make-referent graph nil)))
-    (cg::make-concept (cg::get-concept-type (complement-type-for ir)) referent)))
+    (cg::make-concept (cg::get-concept-type (note-type-label (complement-type-for ir)))
+                      referent)))
 
 (defun emit-trace (filler required-type)
   "Realize a trace (control/raising gap) as coreference with its antecedent.

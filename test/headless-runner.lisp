@@ -32,6 +32,7 @@
     ("deictic"      . extract-deictic-headless-test)
     ("anaphora"     . extract-anaphora-headless-test)
     ("ontology"     . extract-ontology-headless-test)
+    ("ontology-capture" . extract-ontology-capture-headless-test)
     ("adverb"       . extract-adverb-headless-test)
     ("passive"      . extract-passive-headless-test)
     ("determiner"   . extract-determiner-headless-test)

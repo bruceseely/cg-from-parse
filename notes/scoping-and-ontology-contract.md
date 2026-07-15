@@ -133,14 +133,28 @@ advisory `:gender-sex-arc` convention on the `:anaphora` construction, so it is
 documented and **profile-gated**: a profile that can't reach the anaphora path
 doesn't depend on it.
 
-### Known gap
+### Both directions are checked
 
-`validate-ontology` catches **over/mis-declaration** (a manifest label that no longer
-resolves) — the self-check test proves the reference ontology satisfies `:full`, so
-the manifest names only real vocabulary. It does **not** yet catch
-**under-declaration** (a framework label the extractor emits but the manifest
-forgot); that needs runtime capture of the labels an extraction actually touches, and
-is future work. Test: `test/extract-ontology-headless.lisp`.
+- **Over/mis-declaration** — a manifest label that no longer resolves — is caught by
+  `validate-ontology :full` over the reference ontology (test
+  `test/extract-ontology-headless.lisp`): if the manifest named a dropped label it
+  would report missing.
+- **Under-declaration** — a framework label the extractor emits but the manifest
+  forgot — is caught by **runtime capture** (test
+  `test/extract-ontology-capture-headless.lisp`). A battery spanning every
+  construction runs with `*captured-relations*`/`*captured-types*` bound; every
+  relation flows through the one chokepoint `make-relation*`, and framework types are
+  recorded at their literal sites (`note-type-label`: type-hints, complement wrapper,
+  predicate/exchange root, the STATE probe). The test asserts every captured label is
+  declared — so adding an emission without a manifest entry fails the build. The
+  lemma-derived `concept-for` path is not captured, keeping DOMAIN types and entailed
+  relation dest-types out of scope, exactly as the manifest intends.
+
+  Two deliberate exclusions from the captured-vs-declared diff: the **self-provided**
+  `prop` relation (`*self-provided-relations*` — `ensure-complement-relation` creates
+  it, so it is emitted but not required), and the fact that capture covers the current
+  emission chokepoints — a framework *type* added at a brand-new site would need its
+  own `note-type-label` (relations, sharing one chokepoint, need nothing).
 
 ---
 
@@ -151,6 +165,7 @@ is future work. Test: `test/extract-ontology-headless.lisp`.
   Profiles: `:full`, `:core`.
 - `:core` demonstrates the pair end to end: the grammar rejects out-of-scope input
   and the ontology profile requires a strict subset of the framework vocabulary.
+- The ontology contract is checked **both directions**: over-declaration (static, via
+  `validate-ontology`) and under-declaration (runtime capture). Both are green.
 - Next: additional profiles as use cases appear (each = a coherent grammar subset +
-  its ontology tags + a test); and closing the under-declaration gap in
-  `validate-ontology` via runtime capture.
+  its ontology tags + a test).
