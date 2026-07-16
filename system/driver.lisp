@@ -109,3 +109,33 @@ there), which shows as `Unable to connect' in the browser."
                  (open that exact URL -- 127.0.0.1, not localhost; ~
                  stop with (cg::stop-web-server))~%" url)
     url))
+
+(defun browse-lexicon (&key all (stream *standard-output*) (columns 6))
+  "Print the words PARSIFAL can currently parse -- the live lexicon this session
+is using -- and return the list of word-name strings (sorted). This is the lexicon
+counterpart to BROWSE-TYPES: the lexicon (what words parse at all) and the concept-type
+ontology (what a parsed lemma maps to) are independent catalogs, and a word can be in
+one without the other -- e.g. `want' is in the lexicon but has no concept type. A REPL
+lister rather than a web page; STREAM/COLUMNS control the printed layout.
+
+By default the punctuation tokens and clitic fragments (`.', `'d', `'s', ...) that
+are also lexicon entries are omitted, leaving the words one would add to a sentence;
+pass ALL non-nil to include them and get the complete inventory.
+
+  (browse-lexicon)             ; content words: prints the table, returns the list
+  (browse-lexicon :all t)      ; everything, incl. punctuation + clitics
+  (member \"want\" (browse-lexicon) :test #'string=)"
+  (ensure-grammar)
+  (let* ((words (mapcar (lambda (s) (string-downcase (symbol-name s)))
+                        (pa:lexicon-words :sort t :all all)))
+         (n (length words)))
+    (format stream "~&Lexicon: ~a ~a  (add more in ~
+                    parsifal/system/core/runtime/supplement.dict~
+                    ~@[; content words only -- :all t for everything~])~%~%"
+            n (if all "entries" "words") (not all))
+    (loop for w in words
+          for i from 1
+          do (format stream "  ~va" 18 w)
+             (when (zerop (mod i columns)) (terpri stream)))
+    (unless (zerop (mod n columns)) (terpri stream))
+    words))
