@@ -25,7 +25,7 @@
            #:parse-and-extract #:sentence->cg-text
            #:sentence->say #:say-graph
            #:ensure-grammar #:ensure-cgraph
-           #:validate-ontology))
+           #:validate-ontology #:browse-types))
 
 (in-package :asdf-user)
 

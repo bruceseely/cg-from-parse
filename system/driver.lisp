@@ -86,3 +86,26 @@ out; the natural-language counterpart of sentence->cg-text.
   (sentence->say \"the man knows that the dog sees him .\")
   ;; => \"The man knows that the dog sees him.\""
   (say-graph (parse-and-extract sentence :on-missing on-missing)))
+
+(defun browse-types (&key (port 8060))
+  "Start cgraph's web concept-type browser on THIS session's live type catalog and
+return the URL to open. Loads the cgraph-web system (Hunchentoot) on demand and
+ensures cgraph is initialized first, so the browser shows exactly the ontology this
+cg-from-parse session is using -- including any types created during extraction under
+:create, since cgraph's type catalog is process-global and shared in this image.
+
+Keep the REPL alive: the server runs inside this Lisp image and dies when it exits,
+so starting it from a one-shot/non-interactive process is a common cause of a dead
+page. Stop it with (cg::stop-web-server) (or restart on a new PORT).
+
+IMPORTANT -- open http://127.0.0.1:<port>, NOT http://localhost:<port>. The server
+binds IPv4 127.0.0.1, and `localhost' can resolve to IPv6 ::1 first (nothing listens
+there), which shows as `Unable to connect' in the browser."
+  (ensure-cgraph)
+  (asdf:load-system :cgraph-web)
+  (funcall (intern "START-WEB-SERVER" :cg) :port port)
+  (let ((url (format nil "http://127.0.0.1:~a" port)))
+    (format t "~&Concept-type browser ready: ~a~%~
+                 (open that exact URL -- 127.0.0.1, not localhost; ~
+                 stop with (cg::stop-web-server))~%" url)
+    url))
