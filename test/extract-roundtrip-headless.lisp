@@ -12,10 +12,12 @@
 ;;; and capitalization are the realizer's business); the point is that coreference and
 ;;; the clause survive the round trip.
 ;;;
-;;; KNOWN, uncovered gap (a separate cgraph realizer issue, not asserted here): an
-;;; INFINITIVAL complement is dropped by say ("the boy wants to go ." -> "The boy
-;;; wants."). Extraction is correct ([WANT]...(prop)->[SITUATION:[GO]...]); realizing
-;;; embedded situations is future realizer work.
+;;; INFINITIVAL complements now round-trip too ("the boy wants to go ." -> "The boy
+;;; wants to go."): the extractor wraps them as (prop)->[SITUATION:[GO]...], and the
+;;; cgraph realizer renders a SITUATION complement as a 'to <verb>' infinitive (a
+;;; PROPOSITION stays a 'that'-clause). This was previously dropped -- `prop' was
+;;; unmapped in the realizer's syntax table -- exactly the extractor/realizer
+;;; mismatch this round-trip gate exists to catch.
 ;;;
 ;;;   sbcl --non-interactive --disable-debugger \
 ;;;     --eval '(ql:quickload :swank)' --eval '(ql:quickload :cg-from-parse)' \
@@ -28,17 +30,19 @@
 (setup-test-cgraph)
 
 (defun %say (sentence)
-  "Round-trip SENTENCE to text (downcased), or NIL on failure."
+  "Round-trip SENTENCE to text (downcased), or NIL on failure. Uses :create so
+out-of-test-type verbs (want) resolve -- this gates REALIZATION fidelity, not typing."
   (handler-bind ((warning #'muffle-warning))
-    (let ((text (ignore-errors (sentence->say sentence))))
+    (let ((text (ignore-errors (sentence->say sentence :on-missing :create))))
       (and (stringp text) (string-downcase text)))))
 
 (defun extract-roundtrip-headless-test (&optional (verbose t))
   (let ((subj  (%say "the man knows that he sees the dog ."))    ; coref subject pronoun
         (obj   (%say "the man knows that the dog sees him ."))   ; coref object pronoun
         (plain (%say "the man sees the dog ."))                  ; no coref, verbatim
-        (two   (%say "the man knows that he sees the woman .")))  ; coref + distinct NP
-    (let ((pass (and subj obj plain two
+        (two   (%say "the man knows that he sees the woman ."))   ; coref + distinct NP
+        (inf   (%say "the boy wants to go .")))                   ; infinitival complement
+    (let ((pass (and subj obj plain two inf
                      ;; subject pronoun survives; the embedded subject is NOT re-nouned
                      (search "he sees the dog" subj)
                      (not (search "a man" subj))
@@ -49,9 +53,13 @@
                      (search "the man sees the dog" plain)
                      ;; coref pronoun + a genuinely distinct NP (the woman) coexist
                      (search "he sees the woman" two)
-                     (not (search "a man" two)))))
+                     (not (search "a man" two))
+                     ;; infinitival complement -> "to go" (not dropped, not "that")
+                     (search "wants to go" inf)
+                     (not (search "that" inf)))))
       (when verbose
-        (format t "~&subj:  ~a~%obj:   ~a~%plain: ~a~%two:   ~a~%" subj obj plain two))
+        (format t "~&subj:  ~a~%obj:   ~a~%plain: ~a~%two:   ~a~%inf:   ~a~%"
+                subj obj plain two inf))
       (format t "~&extract-roundtrip-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
       pass)))
 
