@@ -47,12 +47,15 @@
                   text))))))
 
 (defun extract-anaphora-headless-test (&optional (verbose t))
-  (let ((he    (%anaphora-graph "the man knows that he sees the dog ."))   ; resolve
-        (she   (%anaphora-graph "the woman knows that she sees the dog ."))  ; resolve
+  (let ((he    (%anaphora-graph "the man knows that he sees the dog ."))   ; subj resolve
+        (she   (%anaphora-graph "the woman knows that she sees the dog ."))  ; subj resolve
+        (obj   (%anaphora-graph "the man knows that the dog sees him ."))    ; OBJ resolve
+        (plur  (%anaphora-graph "the men know that the dog sees them ."))    ; plural OBJ resolve
+        (two   (%anaphora-graph "the man knows that he sees him ."))         ; two pronouns (safe)
         (clash (%anaphora-graph "the woman knows that he sees the dog ."))   ; gender clash
         (same  (%anaphora-graph "the man sees him ."))                       ; same clause
         (plain (%anaphora-graph "the man knows that the boy sees the dog ."))); no pronoun
-    (let ((pass (and he she clash same plain
+    (let ((pass (and he she obj plur two clash same plain
                      ;; he -> the man: [MAN] appears as BOTH a defining (#*x) and a
                      ;; bound (?x) coreferring occurrence; no indexical [PERSON:He].
                      (search "KNOW" he)
@@ -61,6 +64,16 @@
                      ;; she -> the woman, likewise
                      (search "[WOMAN:#*X" she) (search "→[WOMAN:?X" she)
                      (not (search "PERSON:SHE" she))
+                     ;; OBJECT pronoun `him' -> the man (cross-clause, binding-safe):
+                     ;; MAN is both defining (#*x) and the bound object (?x).
+                     (search "[MAN:#*X" obj) (search "(OBJ)→[MAN:?X" obj)
+                     (search "(AGNT)→[DOG" obj) (not (search "PERSON:HIM" obj))
+                     ;; plural OBJECT `them' -> the men ([MAN:{}*x] plural defining)
+                     (search "[MAN:{}*X" plur) (search "(OBJ)→[MAN:?X" plur)
+                     (not (search "PERSON:THEM" plur))
+                     ;; two pronouns: `he' resolves to the man, but `him' must stay
+                     ;; free (else he = him) -- Principle B inside the embedded clause.
+                     (search "(AGNT)→[MAN:?X" two) (search "(OBJ)→[PERSON:HE" two)
                      ;; gender clash: `he' NOT resolved -> stays [PERSON: He]; the
                      ;; woman is left with no coreference variable.
                      (search "→[PERSON:HE" clash)

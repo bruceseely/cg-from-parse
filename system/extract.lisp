@@ -603,14 +603,18 @@ an extraction actually emits."
 ;;; --- Anaphora resolution (pronoun -> antecedent) --------------------------
 ;;; PARSIFAL does NOT bind pronouns (unlike traces/relative-gaps/wh, which are
 ;;; syntactic movement and arrive bound), so the extractor must pick the
-;;; antecedent itself. We resolve only ONE narrow, binding-theory-safe
-;;; configuration: a 3rd-person SUBJECT pronoun inside an embedded that-complement
-;;; corefers with the MATRIX subject ("the man believes that he sees the dog" ->
-;;; he = the man). The pronoun is free in its own clause, so this never violates
-;;; Principle B (a co-argument pronoun like "the man sees him" is left alone).
-;;; A resolved pronoun becomes a :trace IR bound to the antecedent node; emit-trace
-;;; then realizes the coreference (cross-context here -> *x/?x variables), exactly
-;;; as it does for a control/raising trace.
+;;; antecedent itself. We resolve one narrow, binding-theory-safe configuration: a
+;;; 3rd-person pronoun that is an ARGUMENT (subject or object) of an embedded
+;;; that-complement corefers with the MATRIX subject ("the man believes that he sees
+;;; the dog" -> he = the man; "the man believes that the dog sees him" -> him = the
+;;; man). Number/person/gender must agree, and it works for plural too ("the men know
+;;; that they see the dog" -> they = the men). Binding stays safe: the antecedent is
+;;; the matrix subject, a different clause, so it is never the pronoun's co-argument
+;;; (a same-clause pronoun like "the man sees him" is left alone), and an embedded
+;;; object is blocked when the embedded subject would corefer with the same
+;;; antecedent ("...he sees him" keeps him free). A resolved pronoun becomes a :trace
+;;; IR bound to the antecedent node; emit-trace then realizes the coreference
+;;; (cross-context here -> *x/?x variables), exactly as for a control/raising trace.
 
 (defvar *resolve-anaphora* t
   "When true, attempt the narrow intra-sentence anaphora resolution above; a
@@ -666,21 +670,44 @@ either side is permissive)."
                (ag (lemma-gender   (entity-lemma ante))))
            (or (null pg) (null ag) (eq pg ag))))))
 
+(defun clause-argument-node-p (node clause)
+  "True when NODE is a case filler (an argument -- subject, object, ...) of CLAUSE."
+  (loop for (cname filler gfunc) in (ignore-errors (pa::getc 'pa::cases clause))
+        thereis (eq node filler)))
+
+(defun pronoun-node-p (node)
+  "True when NODE is a personal-pronoun NP."
+  (and (pronoun-lemma-p (ignore-errors (effective-lemma node))) t))
+
 (defun anaphor-antecedent (pronoun-node seen)
-  "Antecedent NODE for PRONOUN-NODE under the narrow resolution above, or NIL to
-leave it an indexical. SEEN is filler->ir's ancestor path; for a pronoun that is
-the subject of an embedded complement it is (embedded-clause matrix-clause ...).
-We resolve iff *resolve-anaphora* is on, the pronoun is the SUBJECT of an embedded
-that-complement (so binding is safe), and it agrees with the matrix subject."
+  "Antecedent NODE for PRONOUN-NODE under the narrow resolution, or NIL to leave it
+an indexical. SEEN is filler->ir's ancestor path; for a pronoun inside an embedded
+complement it is (embedded-clause matrix-clause ...). We resolve iff *resolve-anaphora*
+is on, PRONOUN-NODE is an ARGUMENT (subject OR object) of an embedded that-complement,
+and it agrees with the matrix subject (number/person/gender). Binding stays safe: the
+antecedent is the MATRIX subject, a different clause, so it is never PRONOUN-NODE's
+co-argument (Principle B holds for free). The one extra hazard is an embedded OBJECT
+pronoun whose embedded SUBJECT ALSO corefers with that same matrix subject -- \"the man
+knows that he sees him\" must not make he = him; so an object pronoun is blocked when
+the embedded subject is itself a pronoun that agrees with the antecedent."
   (when *resolve-anaphora*
     (let ((embedded (first seen))
           (matrix   (second seen)))
       (when (and embedded matrix
-                 (clause-complement-form embedded)          ; embedded IS a complement
-                 (ignore-errors (pa::getc 'pa::cases matrix)) ; matrix is a clause
-                 (eq pronoun-node (clause-subject-node embedded)))
-        (let ((ante (clause-subject-node matrix)))
-          (when (and ante (anaphora-agree-p pronoun-node ante))
+                 (clause-complement-form embedded)             ; embedded IS a complement
+                 (ignore-errors (pa::getc 'pa::cases matrix))  ; matrix is a clause
+                 (clause-argument-node-p pronoun-node embedded))
+        (let ((ante (clause-subject-node matrix))
+              (subj (clause-subject-node embedded)))
+          (when (and ante
+                     (anaphora-agree-p pronoun-node ante)
+                     ;; the embedded subject is always safe to resolve; an embedded
+                     ;; object is safe unless the subject is a pronoun coreferring
+                     ;; with the same antecedent (then object and subject would clash).
+                     (or (eq pronoun-node subj)
+                         (not (and subj
+                                   (pronoun-node-p subj)
+                                   (anaphora-agree-p subj ante)))))
             ante))))))
 
 (defun np-determiner (node)

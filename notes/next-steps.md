@@ -406,12 +406,18 @@ grammar rule, so it lives in *grammar-extensions*. Works in subject and object
 position. See the DONE banner at the top for the full write-up.
 
 ## 12. Anaphora (pronoun -> antecedent)  — PARTIALLY DONE (2026-07-15)
-DONE: the narrow, binding-theory-safe slice -- a 3rd-person SUBJECT pronoun inside
-an embedded that-complement corefers with the MATRIX subject.
+DONE: the narrow, binding-theory-safe slice -- a 3rd-person pronoun that is an
+ARGUMENT (subject OR object) of an embedded that-complement corefers with the
+MATRIX subject. Singular and plural.
   "the man knows that he sees the dog ." ->
     [KNOW]-(expr)->[MAN:#*x1] (stat)->[PROPOSITION:[SEE]-(agnt)->[MAN:?x1]
                                                           (obj)->[DOG:#]]
   "the woman knows that she sees the dog ." -> she = the woman (coref)
+  "the man knows that the dog sees him ." -> him = the man (OBJECT pronoun)
+  "the men know that the dog sees them ." -> them = the men (plural)
+  "the man knows that he sees him ." -> he = the man, but him stays FREE (an
+    embedded object is blocked when the embedded subject corefers with the same
+    antecedent -- else he = him, violating Principle B in the embedded clause).
 Extractor-only (no parser/cgraph change): PARSIFAL does NOT bind pronouns, so the
 resolver lives in system/extract.lisp (anaphor-antecedent). It fires ONLY when the
 pronoun is the subject of an embedded complement clause (clause-complement-form
@@ -433,10 +439,12 @@ Test test/extract-anaphora-headless.lisp (resolve he/she, gender-clash negative,
 same-clause negative, no-pronoun control). Whole stack green: cg 25/25, all 4
 suites PASS. Extractor-only, so NOT in parsifal EXTENSIONS.md.
 
-STILL OPEN under #12 (each its own follow-up): object-pronoun and plural (they/them)
-resolution; multiple candidates with salience/recency ranking; reflexives (not in
-the lexicon -- himself/herself dropped); and CROSS-sentence anaphora (needs
-multi-sentence discourse, which we don't parse yet).
+STILL OPEN under #12 (each its own follow-up): multiple candidates with
+salience/recency ranking (currently the only candidate is the matrix subject);
+antecedents other than the matrix subject (e.g. matrix object, or a non-subject
+NP); reflexives (not in the lexicon -- himself/herself dropped); and CROSS-sentence
+anaphora (needs multi-sentence discourse, which we don't parse yet).
+DONE 2026-07-15: object + plural pronouns (see the #12 banner above).
 
 ## 10. Ergonomic driver  — DONE
 `cg-from-parse:parse-and-extract` (system/driver.lisp): string → cgraph graph.
