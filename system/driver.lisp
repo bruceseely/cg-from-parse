@@ -66,3 +66,23 @@ lemmas (:error / :create / :top).
 Routes through cg-text, so a promoted [EXCHANGE] graph gets the block renderer
 (render.lisp) and everything else the engine's format-cgraph."
   (cg-text (parse-and-extract sentence :on-missing on-missing)))
+
+(defun say-graph (graph)
+  "Realize GRAPH back to English via cgraph's realizer (say), with cross-context
+coreference generation enabled. cgraph's *anaphora-cross-coref* defaults to NIL, so
+by default a coreferring occurrence in an embedded context (what the extractor emits
+for a resolved pronoun or a control trace, [MAN:?x] bound to [MAN:*x]) would surface
+as a fresh NP (\"a man\") instead of a pronoun. Binding it here keeps the round-trip
+faithful to the coreference the extractor encoded (\"...the dog sees him\", not
+\"...sees a man\") -- without changing cgraph's global default for other callers."
+  (let ((cg::*anaphora-cross-coref* t))
+    (cg::say graph)))
+
+(defun sentence->say (sentence &key (on-missing *on-missing-type*))
+  "Round-trip: parse SENTENCE, extract its conceptual graph, and realize that graph
+back to English (coreference-aware -- see say-graph). English in -> graph -> English
+out; the natural-language counterpart of sentence->cg-text.
+
+  (sentence->say \"the man knows that the dog sees him .\")
+  ;; => \"The man knows that the dog sees him.\""
+  (say-graph (parse-and-extract sentence :on-missing on-missing)))

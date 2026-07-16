@@ -45,6 +45,18 @@ One call, English to conceptual graph (with a running cgraph in your session):
 ;; => "[PERSUADE]-(agnt)→[BOY] (prop)→[PROPOSITION:[GO]→(agnt)→[GIRL:?x1]] (rcpt)→[GIRL:?x1]."
 ```
 
+For the full round trip back to English, `sentence->say` extracts and then realizes
+the graph via cgraph's `say`, coreference-aware:
+
+```lisp
+(cg-from-parse:sentence->say "the man knows that the dog sees him .")
+;; => "The man knows that the dog sees him."   (not "... sees a man")
+```
+
+It binds cgraph's `*anaphora-cross-coref*` (off by default) so a resolved pronoun's
+coreference survives the round trip as a pronoun. A round-trip fidelity test
+(`test/extract-roundtrip-headless.lisp`) gates extractor/realizer consistency.
+
 `parse-and-extract` self-initializes on first use — it brings up cgraph (loads
 your `~/.cgraph/types` catalog + a `*context*`) and loads + registers PARSIFAL's
 full grammar, each a no-op if already set up — then parses and extracts, with no

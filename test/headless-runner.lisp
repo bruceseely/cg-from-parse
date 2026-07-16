@@ -31,6 +31,7 @@
     ("pp-adjunct"   . extract-pp-adjunct-headless-test)
     ("deictic"      . extract-deictic-headless-test)
     ("anaphora"     . extract-anaphora-headless-test)
+    ("roundtrip"    . extract-roundtrip-headless-test)
     ("ontology"     . extract-ontology-headless-test)
     ("ontology-capture" . extract-ontology-capture-headless-test)
     ("adverb"       . extract-adverb-headless-test)

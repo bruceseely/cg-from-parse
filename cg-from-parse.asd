@@ -23,6 +23,7 @@
     symbol conflicts that :use-ing two large export sets would create.")
   (:export #:extract-graph
            #:parse-and-extract #:sentence->cg-text
+           #:sentence->say #:say-graph
            #:ensure-grammar #:ensure-cgraph
            #:validate-ontology))
 
