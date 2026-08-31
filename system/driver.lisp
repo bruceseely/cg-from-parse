@@ -89,7 +89,8 @@ out; the natural-language counterpart of sentence->cg-text.
 
 (defun browse-types (&key (port 8060))
   "Start cgraph's web concept-type browser on THIS session's live type catalog and
-return the URL to open. Loads the cgraph-web system (Hunchentoot) on demand and
+return the URL to open. Loads the cgraph-web and cgraph-editor systems
+(Hunchentoot) on demand and
 ensures cgraph is initialized first, so the browser shows exactly the ontology this
 cg-from-parse session is using -- including any types created during extraction under
 :create, since cgraph's type catalog is process-global and shared in this image.
@@ -103,6 +104,11 @@ binds IPv4 127.0.0.1, and `localhost' can resolve to IPv6 ::1 first (nothing lis
 there), which shows as `Unable to connect' in the browser."
   (ensure-cgraph)
   (asdf:load-system :cgraph-web)
+  ;; The browser page carries two buttons that call the editor -- "Draw…" on the
+  ;; type form and "Editor" in the toolbar -- and those routes live in a system
+  ;; of their own. Loading the page's server without them served a page whose
+  ;; buttons answered "could not open the editor: 404".
+  (asdf:load-system :cgraph-editor)
   (funcall (intern "START-WEB-SERVER" :cg) :port port)
   (let ((url (format nil "http://127.0.0.1:~a" port)))
     (format t "~&Concept-type browser ready: ~a~%~
