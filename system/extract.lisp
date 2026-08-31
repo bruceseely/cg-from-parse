@@ -1011,7 +1011,18 @@ referent (see build-referent)."
   ;; The parser emits lemmas as :parsifal symbols (e.g. pa::eat) while cgraph
   ;; types live in :cg; normalize by name so the lookup crosses packages.
   (let* ((name  (intern (string-upcase (string lemma)) :cg))
-         (ctype (ignore-errors (cg::get-concept-type name))))
+         (ctype (ignore-errors (cg::get-concept-type name)))
+         ;; PARSIFAL hands over the surface word, and Marcus entered several
+         ;; irregular pasts as standalone words rather than with `irreg' -- so
+         ;; "the dog ate the pie" arrives as ATE while the ontology, quite
+         ;; rightly, has EAT. cgraph's own irregular-verb table already pairs
+         ;; the two for generation; read backwards it answers this. Only when
+         ;; the surface form itself is not a type: a language where the past
+         ;; form IS a distinct concept keeps its own entry.
+         (root  (and (null ctype) (cg::verb-lemma-of-form name)))
+         (ctype (or ctype
+                    (and root (ignore-errors
+                               (cg::get-concept-type (intern (string-upcase root) :cg)))))))
     (flet ((mk (ct) (concept-of ct :definite definite :plural plural :count count)))
       (cond
         (ctype (mk ctype))
