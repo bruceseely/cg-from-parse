@@ -68,8 +68,10 @@
                      ;; MAN is both defining (#*x) and the bound object (?x).
                      (search "[MAN:#*X" obj) (search "(OBJ)→[MAN:?X" obj)
                      (search "(AGNT)→[DOG" obj) (not (search "PERSON:HIM" obj))
-                     ;; plural OBJECT `them' -> the men ([MAN:{}*x] plural defining)
-                     (search "[MAN:{}*X" plur) (search "(OBJ)→[MAN:?X" plur)
+                     ;; plural OBJECT `them' -> the men ([MAN:{*}*x] plural defining;
+                     ;; `{*}' is the generic collection -- since cgraph f81c7c9 it is
+                     ;; distinct from `{}', the empty/unquantified set)
+                     (search "[MAN:{*}*X" plur) (search "(OBJ)→[MAN:?X" plur)
                      (not (search "PERSON:THEM" plur))
                      ;; two pronouns: `he' resolves to the man, but `him' must stay
                      ;; free (else he = him) -- Principle B inside the embedded clause.

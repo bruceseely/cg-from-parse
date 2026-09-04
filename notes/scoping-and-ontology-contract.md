@@ -83,8 +83,8 @@ check instead.
 ;; Ontology contract check (profile :FULL):
 ;;   ok       CLAUSE (base predicate-argument clause (agent + object))
 ;;   ...
-;;   MISSING  EXCHANGE (...): relations has-part
-;; => (values NIL ((:exchange :relation has-part)))
+;;   MISSING  EXCHANGE (...): relations part
+;; => (values NIL ((:exchange :relation part)))
 ```
 
 ### Attributed per construction — this is what makes it compose
@@ -104,7 +104,7 @@ The grammar profile (§1) and the ontology profile are two halves of one
 
 a **proper subset** of `:full` — it omits `:complements`, `:exchange`, `:possessive`,
 and `:anaphora`, so a `:core` deployment needs strictly less ontology (no
-`proposition`/`situation`/`state`, no `has-part`, no `poss`, and not the gender
+`proposition`/`situation`/`state`, no `part`, no `poss`, and not the gender
 `(sex)` convention). Tags are per-construction, so a profile that supports a
 construction even partially lists it (`:core` does PP adjuncts locatively but not
 temporally, yet still lists `:pp-adjuncts`).
@@ -122,7 +122,7 @@ The contract is the framework **skeleton**, not the lexicon. Deliberately exclud
 - **Relation dest types** (`place`, `manner`, `time-period`) — a relation's
   definition already entails its dest, so checking the relation covers them.
 - **`exch`** — mapped in `*case-role->relation*` but the exchange-frame path
-  restructures into `give`/`pay` + `has-part` and never emits it.
+  restructures into `give`/`pay` + `part` and never emits it.
 
 ### The gender `(sex)` coupling, made explicit
 

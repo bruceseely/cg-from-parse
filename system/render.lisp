@@ -6,14 +6,14 @@
 ;;; into segments and, at a concept shared by several paths, expands that
 ;;; concept's subtree at whichever path reaches it FIRST -- rendering the other
 ;;; occurrences as coref `*x' leaves. That works for a single shared node, but
-;;; our emit-exchange graph defeats it: an [EXCHANGE] with two (has-part)
+;;; our emit-exchange graph defeats it: an [EXCHANGE] with two (part)
 ;;; sub-events (PAY, GIVE) that SHARE both participants (the same [PERSON: I] and
 ;;; [PERSON: You]) has two cycles through the PAY/GIVE pair, so the formatter
 ;;; dumps one whole sub-event inline under a shared participant -- a correct but
 ;;; unreadable tangle.
 ;;;
 ;;; This graph has a fixed, regular shape, so we render it directly: the
-;;; [EXCHANGE] head, then each (has-part) sub-event as its own indented block,
+;;; [EXCHANGE] head, then each (part) sub-event as its own indented block,
 ;;; with any participant shared across the two sub-events shown as a coref leaf
 ;;; ([PERSON: I *b]). Each sub-event on its own is a clean tree, so its leaves
 ;;; reuse the engine's own cg::format-node.
@@ -87,7 +87,7 @@ on first encounter and reused thereafter."
 
 (defun render-exchange (exchange)
   "Render a promoted [EXCHANGE] concept as a block-graph string (no trailing dot):
-the head, then one indented block per (has-part) sub-event, participants shared
+the head, then one indented block per (part) sub-event, participants shared
 between the sub-events shown as coref leaves."
   (let* ((part-rels (cgfp-out-relations exchange))
          (subevents (remove nil (mapcar #'cgfp-rel-dest part-rels)))
@@ -101,7 +101,7 @@ between the sub-events shown as coref leaves."
         (let ((d (cgfp-rel-dest r))) (when d (incf (gethash d counts 0))))))
     (with-output-to-string (out)
       (format out "~a-" (cg::format-node exchange))
-      ;; one block per (has-part) sub-event; in CG linear form every branch off a
+      ;; one block per (part) sub-event; in CG linear form every branch off a
       ;; node except the last ends with a comma, so all but the final block do.
       (loop for (rel . more) on part-rels
             for se = (cgfp-rel-dest rel)

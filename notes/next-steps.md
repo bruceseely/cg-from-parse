@@ -114,9 +114,11 @@ as `[PROPOSITION: …]` all work end-to-end. See README for what's done.
 The reader maps the PARSIFAL aux SPEC node's features (pres/past/future, perf)
 to `:tense`/`:aspect` on the clause IR (`spec-tense`/`spec-aspect`), and
 `emit-clause` sets `concept-tense`/`concept-aspect` on the predicate concept.
-NB: the linear formatter does NOT render tense (it's "consumed by the realizer"),
-so it's verified via the slot, not the text. "sees" -> :present, "persuaded" ->
-:past (see live/coref headless tests).
+NB: the formatter DOES render tense now, as an `@`-word on the predicate
+(`[SEE:@PRESENT]`) — cgraph 74d0411 made the @-annotations survive a round trip.
+It used not to ("consumed by the realizer"), so the older tests verify tense via
+the `:tense` slot rather than the text; either works. "sees" -> :present,
+"persuaded" -> :past (see live/coref headless tests).
 Still TODO here: progressive aspect (not distinguished in the base feature set),
 modal (cgraph has no modal slot — needs a representation), and voice (passive).
 
@@ -486,6 +488,35 @@ the partial tree. `parse-and-extract` signals that report with its error;
 tree). "rules tested there: none" means the grammar has no rule for that
 construction in those packets — a missing-rule diagnosis, as against a dropped
 word. See test/extract-diagnose-headless.lisp.
+
+## Upstream drift repairs (2026-09-04)
+Five headless tests had gone red against sibling-repo changes — all cgraph moving
+correctly and this layer not following. Recorded because the *shape* recurs:
+- **`has-part` → `part`** (cgraph 32a1db3, 2026-08-01: the general mereology
+  relation took the short name, the physical-object one became `physical-part`).
+  The exchange frame emitted `has-part`, so every exchange extraction died with
+  `relation-type-lookup-failed`, and `validate-ontology` required a relation the
+  catalog no longer had. Followed the rename in `emit-exchange`,
+  `*ontology-requirements*`, render.lisp's comments and the tests.
+- **`prop` lost its realizer syntax** (cgraph e05fe91): cgraph's lint found
+  `(prop :dobj)` in `*relation-syntax-table*` naming a relation no shipped catalog
+  defines and dropped it — true of cgraph, false of us, since
+  `ensure-complement-relation` INVENTS `prop`. An unmapped relation is dropped
+  silently by the realizer, so `sentence->say` lost every non-stative complement
+  ("the boy wants to go" → "The boy wants." again — the same symptom as the
+  2026-07-15 fix, a different cause). Fix: `ensure-complement-relation` now also
+  calls `cg::register-relation-syntax` — the hook cgraph provides for an ontology
+  teaching the realizer a relation it has never heard of. Lesson: a self-provided
+  relation must self-provide its SYNTAX too, or it is mute in generation.
+- **Referent rendering** (cgraph f81c7c9 + 74d0411): a generic collection is now
+  `{*}`, distinct from `{}` (the empty/unquantified set), and the formatter emits
+  the `@`-word annotations, so every predicate shows its tense. Two tests asserted
+  the old strings; one also tested the whole graph text for "no `@`" and now found
+  the verb's tense. Test-side fixes, anchored to the concept under test.
+
+Both repos were right; only this layer was stale. The whole-stack gate
+(`test/run-all-suites.sh`) is what makes that visible — run it after any sibling
+change, not just after a change here.
 
 ## Cross-cutting notes
 - Tests load the controlled **test-types** catalog non-destructively via

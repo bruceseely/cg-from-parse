@@ -49,7 +49,7 @@
     "the man knows that the boy sees the dog ."       ; state, proposition, expr
     "the boy wants to go ."                           ; situation
     "the man 's dog sees the woman ."                 ; poss
-    "i pay you for a hamburger .")                    ; event, has-part (exchange)
+    "i pay you for a hamburger .")                    ; event, part (exchange)
   "One or more sentences per emission path, so capture exercises every framework
 relation and type the extractor mints.")
 

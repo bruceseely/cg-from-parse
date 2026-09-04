@@ -6,12 +6,12 @@
 ;;; A commercial verb (`pay') doesn't name a flat act -- it profiles one side of
 ;;; a two-sided exchange. emit-exchange (extract.lisp) promotes the flat PAY
 ;;; clause to Fillmore's exchange frame: an [EXCHANGE] with two reciprocal
-;;; transfers linked by (has-part) --
+;;; transfers linked by (part) --
 ;;;
 ;;;   [EXCHANGE]-
-;;;     (has-part)->[GIVE]- (agnt)->[PERSON: You] (obj)->[HAMBURGER]
+;;;     (part)->[GIVE]- (agnt)->[PERSON: You] (obj)->[HAMBURGER]
 ;;;                         (rcpt)->[PERSON: I]   (time)->[TODAY]
-;;;     (has-part)->[PAY]-  (agnt)->[PERSON: I]   (rcpt)->[PERSON: You]
+;;;     (part)->[PAY]-  (agnt)->[PERSON: I]   (rcpt)->[PERSON: You]
 ;;;                         (obj)->[MONEY]        (manr)->[GLADLY] (time)->[TUESDAY]
 ;;;
 ;;; -- agents SWAP (reciprocity); [MONEY] and the whole [GIVE] transfer are
@@ -59,7 +59,7 @@
                                (princ-to-string graph))))
          (flat (and (stringp text) (remove #\Space (string-upcase text))))
          ;; split the block text at [PAY so we can check each transfer's contents
-         (pay-pos  (and flat (search "(HAS-PART)→[PAY" flat)))
+         (pay-pos  (and flat (search "(PART)→[PAY" flat)))
          (give-part (and pay-pos (subseq flat 0 pay-pos)))
          (pay-part  (and pay-pos (subseq flat pay-pos)))
          ;; RECONCILIATION: the same sentence with the goods transfer stated
@@ -85,10 +85,10 @@
          (sell-x (let ((g (%exchange-graph "you sell me a hamburger ."))) (and g (cg-text g))))
          (pass
           (and flat pay-pos
-               ;; promoted to a COMMERCIAL-EXCHANGE of two (has-part) transfers
+               ;; promoted to a COMMERCIAL-EXCHANGE of two (part) transfers
                (search "[COMMERCIAL-EXCHANGE]" flat)
-               (search "(HAS-PART)→[GIVE" flat)
-               (search "(HAS-PART)→[PAY" flat)
+               (search "(PART)→[GIVE" flat)
+               (search "(PART)→[PAY" flat)
                ;; GIVE (goods) transfer: you give me the hamburger today
                (search "(OBJ)→[HAMBURGER" give-part)
                (search "(TIME)→[TODAY"    give-part)

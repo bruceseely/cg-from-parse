@@ -426,7 +426,7 @@ entity), or NIL."
      :desc "genitive / possessive")
     (:complements  :relations (stat expr)     :concept-types (proposition situation state)
      :desc "clausal complements + stative experiencer (`prop' is self-provided)")
-    (:exchange     :relations (rcpt has-part) :concept-types (event)
+    (:exchange     :relations (rcpt part)     :concept-types (event)
      :desc "commercial-exchange frame; its exchange/pay types are domain content, made on demand")
     (:anaphora     :relations ()              :concept-types () :conventions (:gender-sex-arc)
      :desc "pronoun -> antecedent resolution"))
@@ -1079,8 +1079,8 @@ NODE, and return it."
 ;;; from those roles, so all three verbs yield an identical:
 ;;;
 ;;;   [EXCHANGE]-
-;;;     (has-part)->[PAY] -(agnt)->[BUYER]  (rcpt)->[SELLER] (obj)->[MONEY]
-;;;     (has-part)->[GIVE]-(agnt)->[SELLER] (rcpt)->[BUYER]  (obj)->[GOODS]
+;;;     (part)->[PAY] -(agnt)->[BUYER]  (rcpt)->[SELLER] (obj)->[MONEY]
+;;;     (part)->[GIVE]-(agnt)->[SELLER] (rcpt)->[BUYER]  (obj)->[GOODS]
 ;;;
 ;;; Money is frame-supplied ([MONEY]) unless the verb states it ("for $2"); the
 ;;; whole reverse transfer is frame-supplied when unstated. Each time lands on a
@@ -1143,7 +1143,7 @@ the GIVE clause; \"a hamburger on the table\" -> NIL.)"
   "Promote a commercial-transaction clause (pay/buy/sell) to Fillmore's exchange
 frame (see the commentary above): read the verb's perspective to identify the
 buyer, seller, goods and money among its surface cases, then build the SAME two
-reciprocal transfers linked by (has-part) -- a PAY (money, buyer->seller) and a
+reciprocal transfers linked by (part) -- a PAY (money, buyer->seller) and a
 GIVE (goods, seller->buyer). Money is [MONEY] unless the verb states it; the
 reverse transfer is entirely frame-supplied when unstated. Times route by surface
 position around the goods; the manner adverb marks the paying. Returns the
@@ -1214,7 +1214,7 @@ nodes), so the two transfers still COREFER on the same buyer/seller concepts."
          (exchange   (progn (note-type-label 'cg::event)
                             (concept-for-node nil 'pa::commercial-exchange 'cg::event))))
     (flet ((link-part (part-concept)
-             (let ((rel (make-relation* 'cg::has-part)))
+             (let ((rel (make-relation* 'cg::part)))
                (cg::add-arc-into-relation exchange rel)
                (cg::set-arc-from-relation rel part-concept))))
       (link-part (emit-clause pay-ir))
@@ -1469,15 +1469,30 @@ defining occurrence) on first use."
 
 (defun ensure-complement-relation ()
   "Make sure *clausal-complement-relation* exists, creating it if the catalog
-lacks it. Source ⊤, dest ⊤ -- dest is the top type (not proposition) so the one
-generic relation accepts BOTH complement wrappers, a PROPOSITION (that-clause)
-and a SITUATION (infinitival). Returns the label."
+lacks it, and teach the REALIZER what to do with it. Source ⊤, dest ⊤ -- dest is
+the top type (not proposition) so the one generic relation accepts BOTH complement
+wrappers, a PROPOSITION (that-clause) and a SITUATION (infinitival). Returns the
+label.
+
+The syntax registration is the other half of self-providing a relation. cgraph's
+realizer maps relation -> syntactic role through *relation-syntax-table*, and it
+DROPS an unmapped relation silently: an unmapped `prop' cost us the whole
+complement ("the boy wants to go" realized as "The boy wants."). cgraph used to
+carry a built-in `prop' entry, but removed it in 2026-08 -- correctly, from its own
+point of view: `prop' is not in any shipped catalog, and an entry that can never
+fire is indistinguishable from a mistake. It exists only because WE invent it here,
+so its syntax is ours to declare too, via the register-relation-syntax hook cgraph
+provides for exactly this (an ontology teaching the realizer about a relation the
+table has never heard of). :dobj = a direct-object complement, the role `stat' (the
+stative counterpart) carries. Registrations are cleared with the relation catalog,
+which is why this re-registers on every extraction rather than once at load."
   (let ((label *clausal-complement-relation*))
     (unless (ignore-errors (cg::get-relation-type label))
       (cg::make-relation-type label
                               :source-types (list cg::*concept-type-top*)
                               :dest-type    cg::*concept-type-top*
                               :description  "clausal complement: proposition/situation (cg-from-parse)"))
+    (cg::register-relation-syntax label :dobj)
     label))
 
 (defun ir->cgraph (ir)

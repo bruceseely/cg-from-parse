@@ -1,13 +1,19 @@
 ;;; -*- Mode: LISP; Syntax: Common-lisp; Base: 10; Lowercase: Yes -*-
 ;;;
 ;;; Live number/plural check:
-;;;   "dogs see the man ."        -> [DOG: {}]  (a generic plural set)
-;;;   "three dogs see the man ."  -> [DOG: @3]  (a generic plural with a count)
+;;;   "dogs see the man ."        -> [DOG: {*}]    (a generic plural set)
+;;;   "three dogs see the man ."  -> [DOG: {*}@3]  (a generic plural with a count)
 ;;; A plural NP (NPL) becomes a generic set referent; a leading number adds the
-;;; count, stored as a :measure on the referent. cgraph's formatter renders a
-;;; generic plural with a count as just @N (the empty {} adds nothing); a set
-;;; with named members would render [X: {...}@N]. Checked here both in the
-;;; rendered text and via the referent slot.
+;;; count, stored as a :measure on the referent. Checked here both in the rendered
+;;; text and via the referent slot.
+;;;
+;;; NB the rendering moved under us twice (both cgraph fixes, both right):
+;;; `{*}' -- the GENERIC COLLECTION -- is now distinct from `{}', the empty or
+;;; unquantified set (cgraph f81c7c9, which stopped fabricating the `*'), and the
+;;; formatter now emits the @-word annotations, so every predicate carries its
+;;; tense (`[SEE:@PRESENT]', cgraph 74d0411). The count assertions below are
+;;; therefore anchored to the DOG concept rather than testing the whole string for
+;;; an `@', which now finds the tense of the verb.
 ;;;
 ;;;   sbcl --non-interactive --disable-debugger \
 ;;;     --eval '(ql:quickload :swank)' --eval '(ql:quickload :cg-from-parse)' \
@@ -42,11 +48,10 @@
 (defun extract-number-headless-test (&optional (verbose t))
   (multiple-value-bind (set3 c3 t3) (dog-referent-info "three dogs see the man .")
     (multiple-value-bind (setp cd td) (dog-referent-info "dogs see the man .")
-      (let ((pass (and set3 (eql c3 3)             ; three dogs -> set, count 3
-                       t3 (search "@3" t3)         ; ...rendered as a count (@3)
-                       setp (null cd)              ; dogs -> set, no count
-                       td (search "{}" td)         ; ...renders as a plain set
-                       (not (search "@" td)))))    ; ...with no count
+      (let ((pass (and set3 (eql c3 3)                    ; three dogs -> set, count 3
+                       t3 (search "[DOG:{*}@3]" t3)      ; ...generic set with count 3
+                       setp (null cd)                    ; dogs -> set, no count
+                       td (search "[DOG:{*}]" td))))     ; ...generic set, no count
         (when verbose
           (format t "~&three dogs -> set=~s count=~s  text=~a~%" set3 c3 t3)
           (format t "~&dogs       -> set=~s count=~s  text=~a~%" setp cd td))
