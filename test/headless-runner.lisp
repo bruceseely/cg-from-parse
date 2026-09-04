@@ -47,7 +47,8 @@
     ("stative"      . extract-stative-headless-test)
     ("complement"   . extract-complement-headless-test)
     ("exchange"     . extract-exchange-headless-test)
-    ("driver"       . extract-driver-headless-test))
+    ("driver"       . extract-driver-headless-test)
+    ("diagnose"     . extract-diagnose-headless-test))
   "(label . test-function) for each extract-<label>-headless.lisp script.")
 
 (defun run-headless-tests (&key restore)

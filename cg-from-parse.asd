@@ -25,7 +25,8 @@
            #:parse-and-extract #:sentence->cg-text
            #:sentence->say #:say-graph
            #:ensure-grammar #:ensure-cgraph
-           #:validate-ontology #:browse-types #:browse-lexicon))
+           #:validate-ontology #:browse-types #:browse-lexicon
+           #:diagnose-parse #:parse-failure-report #:lexical-scan))
 
 (in-package :asdf-user)
 

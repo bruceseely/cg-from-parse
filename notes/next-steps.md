@@ -120,6 +120,26 @@ so it's verified via the slot, not the text. "sees" -> :present, "persuaded" ->
 Still TODO here: progressive aspect (not distinguished in the base feature set),
 modal (cgraph has no modal slot — needs a representation), and voice (passive).
 
+**Progressive is blocked one layer down, in the PARSER** (found 2026-09-04 via
+`diagnose-parse`, see §10): "the girl is eating pie ." does not parse at all.
+Marcus's gram1 has two BUILD-AUX rules this port never registered —
+
+    {RULE PROGRESSIVE IN BUILD-AUX
+     [=*be] [=ing] --> Attach 1st to c as prog.  Label c prog.}
+    {RULE COPULA IN BUILD-AUX
+     [=*be] [* is any of prep, adj; * is not part] --> Attach 1st to c as copula. …}
+
+(`parsifal/notes/from-marcus/gram1.l` 115-136, also
+`notes/pidgin-grammar-rules-1977.text` 109-125) — so with `is` in the buffer
+BUILD-AUX falls through to AUX-COMPLETE, AUX-ATTACH drops the aux, MAIN-VERB
+takes `is` itself as the verb, and the participle (or predicate adjective) is
+left with no rule that accepts it. `be` is in the dictionary as `auxverb` only,
+and PASSIVE-AUX ([*be][en]) is registered, which is why "a meeting is scheduled
+for friday ." parses and "… is eating …" / "… is happy ." do not. Adding
+PROGRESSIVE is the parser-side prerequisite for progressive aspect here; COPULA
+would additionally need a CG mapping for predicate nominals/adjectives (an ATTR
+link rather than a case role).
+
 ## 2. More thematic roles  — PARTIALLY DONE
 Map extended with loc→loc and manner→manr (in addition to agt/neut/dat). Also
 confirmed the PREPOSITIONAL DATIVE works: "the man gives the book to the woman ."
@@ -453,6 +473,19 @@ DONE 2026-07-15: object + plural pronouns (see the #12 banner above).
 construction (verified across transitive/ditransitive/control/relative/adjective).
 `:on-missing` keyword binds *on-missing-type*. Also `sentence->cg-text`. Exported
 from the package. See test/extract-driver-headless.lisp.
+
+**Parse-failure diagnosis** (2026-09-04): PARSIFAL is wait-and-see with no
+backtracking, so a failed parse used to be a bare "could not parse". The parser's
+globals still hold everything needed at the dead end, so `parse-failure-report`
+reads them out — how the lexicon/morphology read each token (surface → root →
+features, unknown words called out), which constituent nothing matched and where
+it sits in the sentence, the active packets, the rules that fired, the rules that
+COULD have fired in those packets (with the feature each is indexed under), and
+the partial tree. `parse-and-extract` signals that report with its error;
+`(diagnose-parse "…")` is the REPL entry point (on success it prints the surface
+tree). "rules tested there: none" means the grammar has no rule for that
+construction in those packets — a missing-rule diagnosis, as against a dropped
+word. See test/extract-diagnose-headless.lisp.
 
 ## Cross-cutting notes
 - Tests load the controlled **test-types** catalog non-destructively via

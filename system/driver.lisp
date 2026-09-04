@@ -46,10 +46,187 @@ there composes and registers it."
     (setf *grammar-loaded* t))
   t)
 
+;;; ===========================================================
+;;; Diagnosing a failed parse
+;;; ===========================================================
+;;;
+;;; PARSIFAL is wait-and-see with NO backtracking: when no rule in the active
+;;; packets matches the look-ahead buffer, parse-loop warns "No rule applies."
+;;; and returns NIL. That bare NIL was all parse-and-extract had to report --
+;;; "could not parse", with no hint whether the sentence tripped on a word the
+;;; lexicon lacks, a construction the grammar has no rule for, or a wrong turn
+;;; taken several rules earlier.
+;;;
+;;; Everything needed is still sitting in the parser's globals when the loop
+;;; gives up: the buffer (the node nothing matched), the unconsumed *wstring*,
+;;; the active packets, the derivation (*deriv* -- every rule that DID fire),
+;;; and the partial tree hanging off c. PARSE-FAILURE-REPORT reads that state
+;;; out; parse-and-extract now signals it along with the error, and
+;;; DIAGNOSE-PARSE is the REPL entry point ("why won't this parse?").
+;;;
+;;; The state is only valid AT the dead end -- any further parse overwrites it --
+;;; so the report is built before anything else runs.
+
+(defun lexical-scan (sentence)
+  "How PARSIFAL's morphology reads each token of SENTENCE: a list of
+(SURFACE ROOT FEATURES) per token, ROOT and FEATURES NIL for a token the lexicon
+does not have. Same MORPHO call read-sentence makes, so this is exactly what the
+parser saw -- including the inflection stripping that maps a surface form to its
+entry (`eating' -> EAT with ING PART ADJ replacing the tensed features)."
+  (mapcar (lambda (tok)
+            (if (pa::morpho (reverse (map 'list #'char-code tok)))
+                (let ((w pa::*wrd*))
+                  (list tok (pa::root-of w) (get w 'pa::features)))
+                (list tok nil nil)))
+          (pa::tokenize sentence)))
+
+(defun node-brief (node)
+  "One-line label for a PARSIFAL node: its word (a leaf) or node type (a phrase),
+followed by its feature list."
+  (if (null node)
+      "<none>"
+      (format nil "~(~a~)  [~(~{~a~^ ~}~)]"
+              (or (pa::getr 'pa::word node) (car node))
+              (pa::fe node))))
+
+(defun outermost-node (node)
+  "Walk up from NODE to the top of the tree it hangs in (the partial parse)."
+  (let ((n node))
+    (loop for up = (and n (ignore-errors (pa::father-node n)))
+          while up do (setf n up))
+    n))
+
+(defun packet-rules (packet)
+  "The NORMAL rules registered in PACKET, as a sorted list of (NAME . INDEX-FEATURE)
+-- what the grammar could have done at a dead end with PACKET active. INDEX-FEATURE
+is the feature the rule is indexed under (NOINDEXF = tested against any node);
+a rule whose index feature the stalled node lacks is never even tested."
+  (let ((rules '()))
+    (maphash (lambda (key items)
+               (destructuring-bind (indexf type pkt) key
+                 (when (and (eq pkt packet) (eq type 'pa::normal))
+                   (dolist (item items) (push (cons (third item) indexf) rules)))))
+             pa::*rule-index*)
+    (sort (remove-duplicates rules :key #'car)
+          #'string< :key (lambda (r) (symbol-name (car r))))))
+
+(defun parse-failure-report (sentence)
+  "A report on the dead end the CURRENT parser state is sitting in, as a string:
+how the lexicon read each word, which word the parse stalled on, what was already
+built, which rules fired, and which rules could still have fired there. Call it
+immediately after a failed pa:parse-sentence -- it reads live parser globals, and
+a later parse overwrites them. Used by parse-and-extract's error; see
+DIAGNOSE-PARSE for the REPL entry point."
+  ;; Capture the parse state first: the lexical scan re-runs MORPHO.
+  (let* ((stalled   (and (arrayp pa::*buffer*)
+                         (aref pa::*buffer* pa::*bufpntr*)))
+         (pending   (copy-list pa::*wstring*))
+         (packets   (copy-list pa::*activepackets*))
+         (deriv     (reverse pa::*deriv*))
+         (current   pa::c)
+         (top       (outermost-node (or current pa::s)))
+         (candidates (ignore-errors
+                      (mapcar #'third
+                              (apply #'append
+                                     (pa::fetchrules 'pa::normal pa::*bufpntr*)))))
+         (sent      (copy-list pa::*sent*))
+         ;; A leaf node carries its input position; a phrase node (an NP the
+         ;; parser had already built and could not place) does not, so fall back
+         ;; to the leftmost leaf it dominates.
+         (pos       (and stalled
+                         (or (ignore-errors (pa::getr 'pa::inputpos stalled))
+                             (let ((p (ignore-errors (pa::node-min-pos stalled))))
+                               (and p (<= p (length pa::*sent*)) p)))))
+         (lex       (ignore-errors (lexical-scan sentence)))
+         (unknown   (mapcar #'first (remove-if #'second lex))))
+    (with-output-to-string (out)
+      (format out "~&how the lexicon read it (surface -> root: features)~%")
+      (loop for (surface root feats) in lex
+            for i from 1
+            do (format out "  ~2d. ~12a ~14a ~@[[~(~{~a~^ ~}~)]~]~@[~a~]~%"
+                       i surface
+                       (if root (format nil "-> ~(~a~)" root) "")
+                       feats
+                       (unless root "<-- NOT IN THE LEXICON")))
+      (when unknown
+        (format out "~%dropped ~r unknown word~:p: ~{~a~^ ~}~%~
+                   ~2t read-sentence DROPS what the lexicon lacks, so the parse ran~%~
+                   ~2t on a SHORTER sentence than you typed. Add the word(s) to~%~
+                   ~2t parsifal/system/core/runtime/supplement.dict (or fix the~%~
+                   ~2t spelling) before reading anything below as a grammar gap.~%"
+                (length unknown) unknown))
+      (format out "~%where it stalled~%")
+      (format out "  no rule matched: ~a~@[   (word ~a~@[ of ~a~])~]~%"
+              (node-brief stalled) pos (and pos (length sent)))
+      (when (and pos sent (> pos 1))
+        (format out "  consumed:    ~(~{~a~^ ~}~)~%"
+                (subseq sent 0 (min (1- pos) (length sent)))))
+      (when pending
+        (format out "  still ahead: ~(~{~a~^ ~}~)~%"
+                (mapcar (lambda (n) (or (pa::getr 'pa::word n) '?)) pending)))
+      (format out "~%parser state at the dead end~%")
+      (format out "  current node c : ~a~%" (node-brief current))
+      (format out "  active packets : ~(~{~a~^ ~}~)~%" packets)
+      (format out "  rules tested there: ~:[none~;~(~{~a~^ ~}~)~]~%"
+              candidates candidates)
+      (format out "  rules that fired (~a): ~(~{~a~^ > ~}~)~%" (length deriv) deriv)
+      (format out "~%what the grammar could still have done (rules in the active packets)~%")
+      (dolist (p packets)
+        (let ((rules (packet-rules p)))
+          (format out "  ~(~a~): ~:[--~;~:*~(~{~a~^ ~}~)~]~%"
+                  p (mapcar (lambda (r)
+                              (format nil "~a[~a]" (car r) (cdr r)))
+                            rules))))
+      (when top
+        (format out "~%the partial tree it did build~%")
+        (let ((tree (with-output-to-string (s) (ignore-errors (pa::stree top s)))))
+          (dolist (line (uiop:split-string (string-right-trim '(#\Newline) tree)
+                                           :separator '(#\Newline)))
+            (format out "  ~a~%" line))))
+      (format out "~%reading this report~%")
+      (dolist (line '("* A word `NOT IN THE LEXICON' is the whole story -- fix that first."
+                      "* Otherwise the stalled node is a constituent that no rule in the active"
+                      "  packets accepts. `rules tested there' lists the rules whose index feature"
+                      "  the node actually has; `none' means not one pattern was even tried --"
+                      "  i.e. the grammar has no rule for this construction in these packets."
+                      "* The rules that fired show the turn that led here. A wrong-but-legal rule"
+                      "  strands the real constituent one step later: an aux that completes early"
+                      "  (aux-complete rather than a progressive/copula rule) lets main-verb take"
+                      "  the auxiliary as the verb, and the participle is then left with nothing."
+                      "* Marcus's own grammar is the reference for a missing rule:"
+                      "  parsifal/notes/from-marcus/gram1.l (also"
+                      "  parsifal/notes/pidgin-grammar-rules-1977.text) -- grep either for the"
+                      "  packet name above. What THIS port registers lives in"
+                      "  parsifal/system/grammar/clause-grammar.lisp."))
+        (format out "  ~a~%" line)))))
+
+(defun diagnose-parse (sentence &key (stream *standard-output*) (tree t))
+  "Parse SENTENCE and print WHY it failed -- the REPL answer to `why won't this
+parse?'. Returns T if it parsed (printing its surface tree unless TREE is NIL),
+NIL if it did not (printing PARSE-FAILURE-REPORT). Warnings are muffled: the
+report covers what they would have said.
+
+  (diagnose-parse \"the girl is eating pie in the kitchen .\")"
+  (ensure-grammar)
+  (let ((ok (handler-bind ((warning #'muffle-warning))
+              (pa:parse-sentence sentence
+                                 :initial-rule (intern "INITIAL-RULE" :parsifal)))))
+    (cond ((not ok)
+           (format stream "~&PARSE FAILED: ~s~%~%~a" sentence
+                   (parse-failure-report sentence))
+           nil)
+          (t
+           (format stream "~&parsed: ~s~%" sentence)
+           (when tree
+             (let ((top (outermost-node (or pa::c pa::s))))
+               (when top (pa::stree top stream))))
+           t))))
+
 (defun parse-and-extract (sentence &key (on-missing *on-missing-type*))
   "Parse SENTENCE with PARSIFAL and return its conceptual graph (a cgraph graph).
 Loads + registers the full grammar on first use. Signals an error if PARSIFAL
-can't parse SENTENCE. ON-MISSING binds *on-missing-type* for out-of-ontology
+can't parse SENTENCE -- with PARSE-FAILURE-REPORT\'s account of where and why
+(see DIAGNOSE-PARSE). ON-MISSING binds *on-missing-type* for out-of-ontology
 lemmas (:error / :create / :top).
 
   (parse-and-extract \"the man gives the woman the book .\")
@@ -59,7 +236,10 @@ lemmas (:error / :create / :top).
   (let ((*on-missing-type* on-missing))
     (if (pa:parse-sentence sentence :initial-rule (intern "INITIAL-RULE" :parsifal))
         (extract-graph)
-        (error "cg-from-parse: PARSIFAL could not parse ~s" sentence))))
+        (error "cg-from-parse: PARSIFAL could not parse ~s~2%~a~%~
+                Re-run this report any time with ~
+                (diagnose-parse ~s)."
+               sentence (parse-failure-report sentence) sentence))))
 
 (defun sentence->cg-text (sentence &key (on-missing *on-missing-type*))
   "Convenience: parse-and-extract SENTENCE and return the formatted CG string.

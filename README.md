@@ -65,6 +65,29 @@ per-construction rule-group selection. So it works right after
 `:on-missing` keyword binds `*on-missing-type*` (`:error` default / `:create` /
 `:top`) for out-of-ontology words.
 
+When a sentence won't parse, `diagnose-parse` says why. PARSIFAL is wait-and-see
+with no backtracking, so a dead end used to surface as a bare "could not parse":
+
+```lisp
+(cg-from-parse:diagnose-parse "the girl is eating pie .")
+;; PARSE FAILED: "the girl is eating pie ."
+;;   how the lexicon read it   -- surface -> root: features, per token
+;;                                (`is' -> be [auxverb pres v3s],
+;;                                 `eating' -> eat [ing part adj ...]),
+;;                                with anything NOT IN THE LEXICON called out
+;;   where it stalled          -- `eating' (word 4 of 6), what was consumed,
+;;                                what was still ahead
+;;   parser state              -- current node, active packets, the rules that
+;;                                fired, and the rules that COULD have fired in
+;;                                those packets ("tested there: none" = the
+;;                                grammar has no rule for this construction)
+;;   the partial tree          -- what it did build before giving up
+```
+
+It returns T (printing the surface tree) when the sentence does parse. The same
+report rides along with `parse-and-extract`'s error, so a failed extraction
+explains itself.
+
 To check up front that your ontology provides the framework relations and types the
 extractor needs (rather than discovering a gap mid-sentence), call
 `(cg-from-parse:validate-ontology)` — it prints a per-construction report and
