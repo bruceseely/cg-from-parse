@@ -917,10 +917,24 @@ node's features, or NIL (e.g. a tenseless infinitive)."
             (t nil)))))
 
 (defun spec-aspect (spec-node)
-  "cgraph aspect keyword (:perfect) from a PARSIFAL aux SPEC node, or NIL.
-(Progressive isn't distinguished in the base feature set yet.)"
-  (when (and spec-node (member 'pa::perf (pa::fe spec-node)))
-    :perfect))
+  "cgraph aspect keyword (:perfect / :progressive / :perfect-progressive) from a
+PARSIFAL aux SPEC node, or NIL for the simple aspect.
+
+Both features sit on the SAME aux node -- PERFECTIVE labels it `perf\' and
+PROGRESSIVE labels it `prog\' (parsifal *perfect-rules* / *progressive-rules*, both
+in BUILD-AUX) -- so a stacked verb group carries both, which is cgraph\'s
+:perfect-progressive. NB the stacked surface form (`has been eating\') needs `been\',
+which Marcus\'s dictionary does not enter, so today only the two simple cases are
+reachable; the combination is here because it is where the mapping belongs, not
+because a sentence exercises it."
+  (when spec-node
+    (let* ((fe   (pa::fe spec-node))
+           (perf (member 'pa::perf fe))
+           (prog (member 'pa::prog fe)))
+      (cond ((and perf prog) :perfect-progressive)
+            (perf            :perfect)
+            (prog            :progressive)
+            (t               nil)))))
 
 (defun clause-verb-node (node)
   "The verb leaf for a clause / VP / comp-np NODE (descends VP, then S, then a

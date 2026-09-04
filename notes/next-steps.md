@@ -110,7 +110,7 @@ priority order. Current state (2026-06-25): transitive clauses, control
 coreference (shared-node + cross-context `?x`), and clausal-complement embedding
 as `[PROPOSITION: …]` all work end-to-end. See README for what's done.
 
-## 1. Tense / aspect / modality (`spec`)  — DONE (tense + perfect aspect)
+## 1. Tense / aspect / modality (`spec`)  — DONE (tense + perfect + progressive)
 The reader maps the PARSIFAL aux SPEC node's features (pres/past/future, perf)
 to `:tense`/`:aspect` on the clause IR (`spec-tense`/`spec-aspect`), and
 `emit-clause` sets `concept-tense`/`concept-aspect` on the predicate concept.
@@ -119,28 +119,42 @@ NB: the formatter DOES render tense now, as an `@`-word on the predicate
 It used not to ("consumed by the realizer"), so the older tests verify tense via
 the `:tense` slot rather than the text; either works. "sees" -> :present,
 "persuaded" -> :past (see live/coref headless tests).
-Still TODO here: progressive aspect (not distinguished in the base feature set),
-modal (cgraph has no modal slot — needs a representation), and voice (passive).
+**PROGRESSIVE — DONE 2026-09-04, both layers.** "the girl is eating pie ." ->
+`[EAT: @present-progressive]`, and back through `say` as "The girl is eating a
+pie." It did not parse AT ALL before this (found via `diagnose-parse`, §10): the
+port had never registered Marcus's PROGRESSIVE rule, so with `is` in the buffer
+BUILD-AUX fell through to AUX-COMPLETE, AUX-ATTACH dropped the aux, MAIN-VERB
+took `is` ITSELF as the verb, and `eating` was left with no rule that accepts it.
+(`be` is `auxverb` only in the dictionary; PASSIVE-AUX `[*be][en]` WAS registered,
+which is why "a meeting is scheduled for friday ." parsed and no progressive did.)
+- PARSER (parsifal): new `*progressive-rules*` group — `{RULE PROGRESSIVE IN
+  BUILD-AUX [=*be] [=ing] --> Attach 1st to c as prog. Label c prog.}`, verbatim
+  gram1:115 — in `*marcus-full-grammar*` (a restored Marcus rule, NOT an
+  extension, so no EXTENSIONS.md entry). Disjoint from the other BUILD-AUX
+  stackers by its second element, so they compose. Test
+  `gram1-progressive-test` (incl. a guard that the sentence fails without the
+  group, and that a passive is unaffected). `:core` deliberately left alone.
+- EXTRACTOR: `spec-aspect` reads `prog` off the aux SPEC node -> `:progressive`;
+  perf+prog (same node, both labels) -> `:perfect-progressive`, which cgraph's
+  realizer also builds — though the surface form needs `been`, which Marcus's
+  dictionary never entered, so it is unreachable today. Test
+  `test/extract-progressive-headless.lisp` (slot + `@`-word + round trip +
+  a perfect control for the mapping's other branch).
 
-**Progressive is blocked one layer down, in the PARSER** (found 2026-09-04 via
-`diagnose-parse`, see §10): "the girl is eating pie ." does not parse at all.
-Marcus's gram1 has two BUILD-AUX rules this port never registered —
+Still TODO here: modal (cgraph has no modal slot — needs a representation), and
+voice (passive) beyond the participle case.
 
-    {RULE PROGRESSIVE IN BUILD-AUX
-     [=*be] [=ing] --> Attach 1st to c as prog.  Label c prog.}
+**COPULA is the remaining `be` gap** (same discovery, deliberately not done):
+"the girl is happy ." still fails. Marcus's other unregistered BUILD-AUX rule is
+
     {RULE COPULA IN BUILD-AUX
      [=*be] [* is any of prep, adj; * is not part] --> Attach 1st to c as copula. …}
 
-(`parsifal/notes/from-marcus/gram1.l` 115-136, also
-`notes/pidgin-grammar-rules-1977.text` 109-125) — so with `is` in the buffer
-BUILD-AUX falls through to AUX-COMPLETE, AUX-ATTACH drops the aux, MAIN-VERB
-takes `is` itself as the verb, and the participle (or predicate adjective) is
-left with no rule that accepts it. `be` is in the dictionary as `auxverb` only,
-and PASSIVE-AUX ([*be][en]) is registered, which is why "a meeting is scheduled
-for friday ." parses and "… is eating …" / "… is happy ." do not. Adding
-PROGRESSIVE is the parser-side prerequisite for progressive aspect here; COPULA
-would additionally need a CG mapping for predicate nominals/adjectives (an ATTR
-link rather than a case role).
+(`parsifal/notes/from-marcus/gram1.l` 136, `notes/pidgin-grammar-rules-1977.text`
+125). Registering it is as small as PROGRESSIVE was, but the CG side is a real
+design step, not a mapping: a predicate adjective/nominal is not a case role but
+an `attr` link (or type subsumption) on the SUBJECT, so `emit-clause`'s
+predicate-centred shape does not fit it. Do that deliberately, not as a follow-on.
 
 ## 2. More thematic roles  — PARTIALLY DONE
 Map extended with loc→loc and manner→manr (in addition to agt/neut/dat). Also

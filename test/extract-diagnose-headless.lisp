@@ -6,9 +6,14 @@
 ;;; must ride along with parse-and-extract's error.
 ;;;
 ;;; The two failures exercised are the two kinds:
-;;;   * a MISSING GRAMMAR RULE -- "the girl is eating pie ." (no progressive
-;;;     rule in BUILD-AUX, so aux-complete/main-verb take `is' as the verb and
-;;;     `eating' is stranded);
+;;;   * a MISSING GRAMMAR RULE -- "the girl is happy ." (no COPULA rule in
+;;;     BUILD-AUX, so aux-complete/main-verb take `is' as the verb and the
+;;;     predicate adjective `happy' is stranded). It was "the girl is eating pie
+;;;     ." until PROGRESSIVE landed and that sentence started parsing -- the
+;;;     sharp edge of a test like this is that it needs a construction the
+;;;     grammar genuinely cannot do. Copula is the remaining `be' gap (see
+;;;     notes/next-steps.md §1); if it is ever registered, move this to another
+;;;     unhandled construction rather than weakening the assertions;
 ;;;   * a MISSING WORD -- read-sentence drops what the lexicon lacks, and the
 ;;;     report has to say so rather than blaming the grammar.
 ;;;
@@ -26,7 +31,7 @@
   (handler-bind ((warning #'muffle-warning))
     (let* (;; --- a construction the grammar has no rule for ---
            (rule-gap (with-output-to-string (s)
-                       (diagnose-parse "the girl is eating pie ." :stream s)))
+                       (diagnose-parse "the girl is happy ." :stream s)))
            ;; --- a word the lexicon does not have ---
            (word-gap (with-output-to-string (s)
                        (diagnose-parse "the girl zorks pie ." :stream s)))
@@ -35,14 +40,14 @@
            (good (with-output-to-string (s)
                    (setf parsed (diagnose-parse "the girl eats pie ." :stream s))))
            ;; --- the same report reaches the caller through the error ---
-           (err (handler-case (progn (parse-and-extract "the girl is eating pie .") nil)
+           (err (handler-case (progn (parse-and-extract "the girl is happy .") nil)
                   (error (e) (princ-to-string e))))
            (pass (and (search "PARSE FAILED" rule-gap)
-                      ;; morphology line: surface -> root
-                      (search "eating" rule-gap)
-                      (search "-> eat" rule-gap)
+                      ;; morphology line: surface -> root (`is' -> BE)
+                      (search "happy" rule-gap)
+                      (search "-> be" rule-gap)
                       ;; the stall point and the rules that led there
-                      (search "no rule matched: eating" rule-gap)
+                      (search "no rule matched: happy" rule-gap)
                       (search "main-verb" rule-gap)
                       (search "active packets" rule-gap)
                       ;; a missing word is called out as such
@@ -54,10 +59,10 @@
                       (not (search "PARSE FAILED" good))
                       ;; and parse-and-extract's error carries the report
                       err (search "could not parse" err)
-                      (search "no rule matched: eating" err)
+                      (search "no rule matched: happy" err)
                       (search "diagnose-parse" err))))
       (when verbose
-        (format t "~&--- (diagnose-parse \"the girl is eating pie .\") ---~%~a" rule-gap)
+        (format t "~&--- (diagnose-parse \"the girl is happy .\") ---~%~a" rule-gap)
         (format t "~&--- unknown word: first lines of the report ---~%~{~a~%~}"
                 (subseq (uiop:split-string word-gap :separator '(#\Newline)) 0 8)))
       (format t "~&extract-diagnose-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
