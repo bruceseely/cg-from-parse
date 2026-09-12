@@ -152,8 +152,7 @@ DIAGNOSE-PARSE for the REPL entry point."
         (format out "~%dropped ~r unknown word~:p: ~{~a~^ ~}~%~
                    ~2t read-sentence DROPS what the lexicon lacks, so the parse ran~%~
                    ~2t on a SHORTER sentence than you typed. Fix the spelling, or~%~
-                   ~2t add the word~p to~%~
-                   ~2t parsifal/system/core/runtime/supplement.dict -- paste-ready:~%~%"
+                   ~2t add the word~p to your project lexicon -- paste-ready:~%~%"
                 (length unknown) unknown (length unknown))
         ;; Emit a line the ontologist can paste as-is, carrying the sentence
         ;; that needed the word. Every other entry in supplement.dict records
@@ -167,7 +166,16 @@ DIAGNOSE-PARSE for the REPL entry point."
                      ~4t block  inanimate count thing      boy   human animate~%~
                      ~4t hair   mass noun (no determiner)  fido  proper name~%~
                      ~2t A verb or anything with a case frame needs `df', not~%~
-                     ~2t `jlike'; see the header of supplement.dict.~%"))
+                     ~2t `jlike'; see the header of supplement.dict.~%~%")
+        (if pa:*user-lexicon-files*
+            (format out "~2t Your project lexicon: ~{~a~^~%~24t~}~%"
+                    pa:*user-lexicon-files*)
+            (format out "~2t No project lexicon is loaded. Vocabulary for YOUR corpus~%~
+                         ~2t belongs with your project, not in a parsifal checkout:~%~
+                         ~4t (pa:load-user-lexicon \"/path/to/lexicon.dict\")~%~
+                         ~2t or set PARSIFAL_USER_LEXICON before loading parsifal.~%~
+                         ~2t Words the parser itself needs go in parsifal's own~%~
+                         ~2t system/core/runtime/supplement.dict.~%")))
       (format out "~%where it stalled~%")
       (format out "  no rule matched: ~a~@[   (word ~a~@[ of ~a~])~]~%"
               (node-brief stalled) pos (and pos (length sent)))
