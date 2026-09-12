@@ -151,10 +151,23 @@ DIAGNOSE-PARSE for the REPL entry point."
       (when unknown
         (format out "~%dropped ~r unknown word~:p: ~{~a~^ ~}~%~
                    ~2t read-sentence DROPS what the lexicon lacks, so the parse ran~%~
-                   ~2t on a SHORTER sentence than you typed. Add the word(s) to~%~
-                   ~2t parsifal/system/core/runtime/supplement.dict (or fix the~%~
-                   ~2t spelling) before reading anything below as a grammar gap.~%"
-                (length unknown) unknown))
+                   ~2t on a SHORTER sentence than you typed. Fix the spelling, or~%~
+                   ~2t add the word~p to~%~
+                   ~2t parsifal/system/core/runtime/supplement.dict -- paste-ready:~%~%"
+                (length unknown) unknown (length unknown))
+        ;; Emit a line the ontologist can paste as-is, carrying the sentence
+        ;; that needed the word. Every other entry in supplement.dict records
+        ;; WHY it is there; a bare `(jlike foo block)' added mid-task is how
+        ;; that rationale gets lost, so supply the comment rather than asking
+        ;; for it at the one moment nobody wants to stop and write prose.
+        (dolist (w unknown)
+          (format out "~6t(jlike ~(~a~) block)~vt; inanimate physobj count noun (~s)~%"
+                  w (max 30 (+ 14 (length (string w)))) sentence))
+        (format out "~%~2t `block' is the clone target -- pick one that fits:~%~
+                     ~4t block  inanimate count thing      boy   human animate~%~
+                     ~4t hair   mass noun (no determiner)  fido  proper name~%~
+                     ~2t A verb or anything with a case frame needs `df', not~%~
+                     ~2t `jlike'; see the header of supplement.dict.~%"))
       (format out "~%where it stalled~%")
       (format out "  no rule matched: ~a~@[   (word ~a~@[ of ~a~])~]~%"
               (node-brief stalled) pos (and pos (length sent)))
