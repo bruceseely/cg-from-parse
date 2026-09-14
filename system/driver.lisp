@@ -152,7 +152,7 @@ DIAGNOSE-PARSE for the REPL entry point."
         (format out "~%dropped ~r unknown word~:p: ~{~a~^ ~}~%~
                    ~2t read-sentence DROPS what the lexicon lacks, so the parse ran~%~
                    ~2t on a SHORTER sentence than you typed. Fix the spelling, or~%~
-                   ~2t add the word~p to your project lexicon -- paste-ready:~%~%"
+                   ~2t add the word~p to your project lexicon:~%~%"
                 (length unknown) unknown (length unknown))
         ;; Emit a line the ontologist can paste as-is, carrying the sentence
         ;; that needed the word. Every other entry in supplement.dict records
@@ -169,7 +169,15 @@ DIAGNOSE-PARSE for the REPL entry point."
                         (zerop i))
                      (format out "~6t~a~%~8t; ~a~%~8t; needed by: ~s~%~%"
                              template why sentence)))
-        (format out "~2t These are GUESSES from the two signals above -- check each~%~
+        (format out "~2t WHERE THESE GO. Into a lexicon FILE, read in the :parsifal~%~
+                     ~2t package -- your project lexicon, or supplement.dict. Do NOT~%~
+                     ~2t paste them at this prompt: cg-from-parse's package does not~%~
+                     ~2t inherit `df'/`jlike', so the form is read as a function call,~%~
+                     ~2t its arguments are evaluated, and you get~%~
+                     ~4t The variable DRIVE is unbound.~%~
+                     ~2t A `PARSIFAL>' prompt works, since the word symbols then~%~
+                     ~2t intern in the package the parser reads them from.~%~%~
+                     ~2t These are GUESSES from the two signals above -- check each~%~
                      ~2t one. Clone targets for `jlike': block (inanimate count),~%~
                      ~2t boy (human animate), hair (mass noun), fido (proper name).~%~
                      ~2t A verb, or anything with a case frame, needs `df' and a~%~
