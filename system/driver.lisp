@@ -159,14 +159,21 @@ DIAGNOSE-PARSE for the REPL entry point."
         ;; WHY it is there; a bare `(jlike foo block)' added mid-task is how
         ;; that rationale gets lost, so supply the comment rather than asking
         ;; for it at the one moment nobody wants to stop and write prose.
-        (dolist (w unknown)
-          (format out "~6t(jlike ~(~a~) block)~vt; inanimate physobj count noun (~s)~%"
-                  w (max 30 (+ 14 (length (string w)))) sentence))
-        (format out "~%~2t `block' is the clone target -- pick one that fits:~%~
-                     ~4t block  inanimate count thing      boy   human animate~%~
-                     ~4t hair   mass noun (no determiner)  fido  proper name~%~
-                     ~2t A verb or anything with a case frame needs `df', not~%~
-                     ~2t `jlike'; see the header of supplement.dict.~%~%")
+        (loop for (surface root) in lex
+              for i from 0
+              unless root
+                do (multiple-value-bind (template why)
+                       (unknown-word-template
+                        surface
+                        (third (nth (1- i) lex))   ; preceding token's features
+                        (zerop i))
+                     (format out "~6t~a~%~8t; ~a~%~8t; needed by: ~s~%~%"
+                             template why sentence)))
+        (format out "~2t These are GUESSES from the two signals above -- check each~%~
+                     ~2t one. Clone targets for `jlike': block (inanimate count),~%~
+                     ~2t boy (human animate), hair (mass noun), fido (proper name).~%~
+                     ~2t A verb, or anything with a case frame, needs `df' and a~%~
+                     ~2t hand-written `cf'; see the header of supplement.dict.~%~%")
         (if pa:*user-lexicon-files*
             (format out "~2t Your project lexicon: ~{~a~^~%~24t~}~%"
                     pa:*user-lexicon-files*)
@@ -220,6 +227,41 @@ DIAGNOSE-PARSE for the REPL entry point."
                       "  packet name above. What THIS port registers lives in"
                       "  parsifal/system/grammar/clause-grammar.lisp."))
         (format out "  ~a~%" line)))))
+
+(defun unknown-word-template (surface prev-feats sentence-initial-p)
+  "A paste-ready definition for an out-of-vocabulary SURFACE word, plus the
+reason for the guess. Returns (values TEMPLATE WHY).
+
+Guessing beats a fixed suggestion because a fixed one is WRONG most of the
+time, and confidently so: everything used to come back as `(jlike w block)',
+which turns a verb into a physical object and a city into a countable thing.
+Two signals are free and reliable enough to act on:
+
+  CAPITALIZED, not sentence-initial  -> a proper noun. (Sentence-initial tells
+  you nothing, since every sentence starts capitalized.)
+
+  FOLLOWS AN AUXILIARY OR MODAL      -> a verb. \"will DRIVE\", \"has EATEN\".
+
+Neither is certain, so the WHY is printed alongside: the reader can see the
+evidence and overrule it. Where there is no signal the old guess stands, but
+labelled as the assumption it is rather than an answer."
+  (flet ((feat-p (&rest names)
+           (some (lambda (f) (member (string-upcase (string f)) names :test #'string=))
+                 prev-feats)))
+    (let ((w (string-downcase (string surface))))
+      (cond
+        ((and (not sentence-initial-p)
+              (plusp (length (string surface)))
+              (upper-case-p (char (string surface) 0)))
+         (values (format nil "(df ~a feats (noun ns n3p propnoun place) markers (place))" w)
+                 "capitalized mid-sentence -> a PROPER NOUN. This template is a PLACE (cf. Marcus's `chicago'); for a person use feats (noun ns n3p propnoun name) markers (hanim), cf. his `mitch'"))
+        ((feat-p "AUXVERB" "MODAL" "FUTURE")
+         (values (format nil "(df ~a feats (mainverb pres tnsless v-3s) cf (neut agt) markers act)" w)
+                 "follows an auxiliary -> a VERB. EDIT THE `cf': it is the case frame, and (neut agt) is only a transitive guess -- cf. Marcus's `go' for motion, (nil (pfrom) (pto) agt)"))
+        (t
+         (values (format nil "(jlike ~a block)" w)
+                 "no strong signal; `block' ASSUMES an inanimate count noun -- check that before pasting"))))))
+
 
 (defun diagnose-parse (sentence &key (stream *standard-output*) (tree t))
   "Parse SENTENCE and print WHY it failed -- the REPL answer to `why won't this

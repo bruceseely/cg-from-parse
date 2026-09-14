@@ -72,12 +72,27 @@
         (cons 'pa::loc    'cg::loc)    ; location  -> loc   (⊤   -> PLACE)
         (cons 'pa::time   'cg::time)   ; time      -> time  (SITUATION -> TIME-PERIOD)
         (cons 'pa::exch   'cg::exch)   ; exchange  -> exch  (ACT -> ENTITY)
+        (cons 'pa::pto    'cg::dest)   ; direction -> dest  (EVENT -> PLACE)
         (cons 'pa::manner 'cg::manr))  ; manner    -> manr  (ACT -> MANNER)
   "PARSIFAL thematic case roles (in :parsifal) mapped to cgraph relation labels
 (in :conceptual-graphs). Each relation is emitted as [PRED]->(rel)->[filler], so
 the predicate (an ACT/EVENT) is the SOURCE -- only relations whose source accepts
 an act belong here (that excludes poss/from/goal, whose sources are
-animate/entity/state). agt/neut/dat are exercised by the test verbs; the
+animate/entity/state).
+
+`pto' is Marcus's directional case, the one his motion verbs carry (`go' is
+cf (nil (pfrom) (pto) agt)). Unmapped, a destination was parsed and then
+dropped in silence -- \"drive his automobile TO BALTIMORE\" came out with no
+trace of Baltimore, and nothing warned about it. `dest' fits exactly: EVENT ->
+PLACE, and a place noun is what fills the case.
+
+`pfrom', its mirror, is deliberately still absent: nothing in the catalog
+suits it. `from' is entity -> entity and means an ordering between concepts,
+not a motion origin, so it fails the act-source test above; `goal' is
+state -> situation. An origin relation would have to be added to
+cgraph-types first, which is an ontology decision, not a mapping one.
+
+agt/neut/dat are exercised by the test verbs; the
 prepositional dative (give's `to' PP) also fills DAT. loc/manr are wired and
 correct but need a verb that licenses them (or surface-tree PP-adjunct handling,
 see notes/next-steps.md) to surface -- PP adjuncts are NOT in the case frame.
