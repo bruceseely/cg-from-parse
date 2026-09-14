@@ -35,6 +35,7 @@
     ("ontology"     . extract-ontology-headless-test)
     ("ontology-capture" . extract-ontology-capture-headless-test)
     ("adverb"       . extract-adverb-headless-test)
+    ("compound"     . extract-compound-headless-test)
     ("passive"      . extract-passive-headless-test)
     ("determiner"   . extract-determiner-headless-test)
     ("quantifier"   . extract-quantifier-headless-test)
