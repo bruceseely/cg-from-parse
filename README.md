@@ -95,6 +95,46 @@ returns `(values ok-p missing)`. This is the *output* scope of the pipeline; the
 *input* scope (a restricted, out-of-scope-rejecting grammar) lives in parsifal's
 grammar profiles. See `notes/scoping-and-ontology-contract.md`.
 
+## Your domain: types and vocabulary in one place
+
+A domain is **one directory**, and you point at it once:
+
+```lisp
+(cg::setup-cgraph <cgraph-source-dir> :external-types-directory "/path/to/my-domain/")
+```
+
+```
+my-domain/
+├── concept-types.lisp     what things ARE      (the lattice)
+├── relation-types.lisp    how they RELATE      (relation signatures)
+└── lexicon.dict           what the words DO    (parser vocabulary)   [optional]
+```
+
+The first two are cgraph's, the third is parsifal's — but that split is ours to
+worry about, not yours. You supply the data your domain needs; the directory is
+the unit. `lexicon.dict` is found automatically beside the type files, with
+nothing extra to pass.
+
+**Why they belong together.** Every content word needs a matching concept type,
+paired by name: `(jlike cherry block)` in the lexicon and `(:label cherry …)` in
+the lattice. Miss the word and it is dropped from the sentence; miss the type and
+extraction stops with `no concept type for lemma CHERRY`. Keeping the halves in
+one versioned directory is what stops them drifting apart.
+
+**A lexicon is optional.** A domain used for cgraph work alone needs none, and
+nothing breaks without it. (Naming a lexicon file that is *missing* still errors
+— parsing on without vocabulary you asked for is how a lexicon gap gets mistaken
+for a grammar gap. "Absent" and "misnamed" are different things.)
+
+**Switching domains needs a fresh image.** The two halves are not symmetric: the
+type catalog can be swapped live, but word definitions accumulate on symbol
+plists and there is no unload. Within one project this has not come up — word
+definitions are additive, and several files compose in order.
+
+Words the *parser itself* needs — ordinary English Marcus never entered — belong
+in parsifal's `system/core/runtime/supplement.dict`, not in a domain. The test
+is whether the word is about your corpus or about English.
+
 ## Package boundary
 
 The `:cg-from-parse` package (nickname `:cfp`) uses only `:cl`. Parser and CG

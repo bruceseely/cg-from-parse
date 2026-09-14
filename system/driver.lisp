@@ -34,6 +34,60 @@ loaders use plain READ.)"
       (cg::reset-cgraph)))
   t)
 
+(defparameter *domain-lexicon-name* "lexicon.dict"
+  "Filename a mounted domain uses for its parser vocabulary, alongside its
+concept-types.lisp and relation-types.lisp.")
+
+(defvar *domain-lexicon-loaded* nil
+  "The domain lexicon file loaded this session, or NIL.")
+
+(defun domain-directory ()
+  "The directory holding the MOUNTED domain's data -- concept types, relation
+types, and (optionally) the parser vocabulary that goes with them.
+
+Found without asking the user for anything new. cgraph already symlinks the
+mounted repo's type files into ~/.cgraph/types, so resolving that symlink
+lands in the domain repo itself; an explicit *external-types-directory* wins
+when one was passed. A user therefore drops lexicon.dict beside the type files
+and it is picked up -- one directory, one setting, which is the whole point."
+  (or (let ((ext (and (boundp 'cg::*external-types-directory*)
+                      cg::*external-types-directory*)))
+        (and ext (uiop:ensure-directory-pathname ext)))
+      (let* ((dir (and (boundp 'cg::*cgraph-types-directory*)
+                       cg::*cgraph-types-directory*))
+             (link (and dir (ignore-errors
+                             (truename (merge-pathnames
+                                        "concept-types.lisp"
+                                        (uiop:ensure-directory-pathname dir)))))))
+        (and link (uiop:pathname-directory-pathname link)))))
+
+(defun ensure-domain-lexicon (&optional force)
+  "Load the mounted domain's parser vocabulary, if it ships any. Returns the
+file loaded, or NIL when the domain has none.
+
+ABSENCE IS LEGAL, and that is the difference between this and
+`pa:load-user-lexicon'. Naming a lexicon file that does not exist is an error
+there, deliberately -- parsing on without the vocabulary you asked for is how a
+lexicon gap gets mistaken for a grammar gap. But a domain need not have a
+lexicon at all: a types repo used for cgraph work alone is perfectly valid, and
+must not be broken by this.
+
+Load order is satisfied by construction: cg-from-parse depends on parsifal, so
+Marcus's dictionary and supplement.dict are already in place, and the domain's
+`jlike' targets resolve.
+
+NO UNLOAD, by decision: word definitions accumulate on symbol plists, so
+switching domains means a fresh image. The type half CAN be swapped live
+(`unload-cgraph-types'), so the two halves of a mount are not symmetric -- see
+the mount notes in README."
+  (when (or force (not *domain-lexicon-loaded*))
+    (let* ((dir  (domain-directory))
+           (file (and dir (probe-file (merge-pathnames *domain-lexicon-name* dir)))))
+      (when file
+        (pa:load-user-lexicon file)
+        (setf *domain-lexicon-loaded* file))))
+  *domain-lexicon-loaded*)
+
 (defun ensure-grammar (&optional force)
   "Load and register PARSIFAL's full grammar so parse-sentence can handle any
 supported construction. Done once per session (pass FORCE to redo). The grammar
@@ -303,6 +357,7 @@ lemmas (:error / :create / :top).
   (parse-and-extract \"the man gives the woman the book .\")
   (parse-and-extract \"the man sees the dog in the park .\" :on-missing :create)"
   (ensure-cgraph)
+  (ensure-domain-lexicon)
   (ensure-grammar)
   (let ((*on-missing-type* on-missing))
     (if (pa:parse-sentence sentence :initial-rule (intern "INITIAL-RULE" :parsifal))
@@ -382,14 +437,19 @@ pass ALL non-nil to include them and get the complete inventory.
   (browse-lexicon)             ; content words: prints the table, returns the list
   (browse-lexicon :all t)      ; everything, incl. punctuation + clitics
   (member \"want\" (browse-lexicon) :test #'string=)"
+  (ensure-cgraph)
+  (ensure-domain-lexicon)
   (ensure-grammar)
   (let* ((words (mapcar (lambda (s) (string-downcase (symbol-name s)))
                         (pa:lexicon-words :sort t :all all)))
          (n (length words)))
-    (format stream "~&Lexicon: ~a ~a  (add more in ~
-                    parsifal/system/core/runtime/supplement.dict~
-                    ~@[; content words only -- :all t for everything~])~%~%"
-            n (if all "entries" "words") (not all))
+    (when *domain-lexicon-loaded*
+      (format stream "~&Domain lexicon: ~a~%" *domain-lexicon-loaded*))
+    (format stream "~&Lexicon: ~a ~a  (add more in your domain's ~a, or in ~
+                    parsifal/system/core/runtime/supplement.dict for words the ~
+                    parser itself needs~@[; content words only -- :all t for ~
+                    everything~])~%~%"
+            n (if all "entries" "words") *domain-lexicon-name* (not all))
     (loop for w in words
           for i from 1
           do (format stream "  ~va" 18 w)
