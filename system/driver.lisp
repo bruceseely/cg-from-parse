@@ -236,15 +236,32 @@ DIAGNOSE-PARSE for the REPL entry point."
                      ~2t boy (human animate), hair (mass noun), fido (proper name).~%~
                      ~2t A verb, or anything with a case frame, needs `df' and a~%~
                      ~2t hand-written `cf'; see the header of supplement.dict.~%~%")
-        (if pa:*user-lexicon-files*
-            (format out "~2t Your project lexicon: ~{~a~^~%~24t~}~%"
-                    pa:*user-lexicon-files*)
-            (format out "~2t No project lexicon is loaded. Vocabulary for YOUR corpus~%~
-                         ~2t belongs with your project, not in a parsifal checkout:~%~
-                         ~4t (pa:load-user-lexicon \"/path/to/lexicon.dict\")~%~
-                         ~2t or set PARSIFAL_USER_LEXICON before loading parsifal.~%~
-                         ~2t Words the parser itself needs go in parsifal's own~%~
-                         ~2t system/core/runtime/supplement.dict.~%")))
+        ;; Name the FILE. Three cases, and the middle one is the common one on a
+        ;; fresh domain: types mounted, no vocabulary yet. Saying "no project
+        ;; lexicon is loaded" there is true and useless -- the reader has a
+        ;; domain directory and needs to be told what to create in it.
+        (let ((domain (ignore-errors (domain-directory))))
+          (cond
+            (*domain-lexicon-loaded*
+             (format out "~2t Add them to your domain lexicon:~%~4t ~a~%"
+                     *domain-lexicon-loaded*))
+            (domain
+             (format out "~2t Your domain is mounted here, but ships no vocabulary yet:~%~
+                          ~4t ~a~%~
+                          ~2t Create this file and put the forms above in it:~%~
+                          ~4t ~a~a~%~
+                          ~2t It is picked up automatically next time the domain loads.~%"
+                     domain domain *domain-lexicon-name*))
+            (t
+             (format out "~2t No domain or project lexicon is loaded. Vocabulary for~%~
+                          ~2t YOUR corpus belongs with your project, not in a parsifal~%~
+                          ~2t checkout -- mount a domain directory, or name a file:~%~
+                          ~4t (pa:load-user-lexicon \"/path/to/lexicon.dict\")~%~
+                          ~2t or set PARSIFAL_USER_LEXICON before loading parsifal.~%"))))
+        (format out "~2t Words the PARSER itself needs -- ordinary English Marcus never~%~
+                     ~2t entered -- go in parsifal's system/core/runtime/supplement.dict~%~
+                     ~2t instead. The test is whether the word is about your corpus or~%~
+                     ~2t about English.~%"))
       (format out "~%where it stalled~%")
       (format out "  no rule matched: ~a~@[   (word ~a~@[ of ~a~])~]~%"
               (node-brief stalled) pos (and pos (length sent)))
@@ -332,6 +349,11 @@ NIL if it did not (printing PARSE-FAILURE-REPORT). Warnings are muffled: the
 report covers what they would have said.
 
   (diagnose-parse \"the girl is eating pie in the kitchen .\")"
+  ;; cgraph too, not just the grammar: the unknown-word advice names the
+  ;; mounted domain's directory, and DOMAIN-DIRECTORY has nothing to resolve
+  ;; until the type catalog is up.
+  (ensure-cgraph)
+  (ensure-domain-lexicon)
   (ensure-grammar)
   (let ((ok (handler-bind ((warning #'muffle-warning))
               (pa:parse-sentence sentence
