@@ -521,6 +521,122 @@ the :cg package)."
   "Human-readable description of a structural convention KEY."
   (or (cdr (assoc key *ontology-conventions*)) (string key)))
 
+(defparameter *content-word-features*
+  '("NOUN" "NAME" "PROPNOUN" "ADJ" "ADV" "MAINVERB")
+  "Features marking a lexeme the extractor will try to realize as a CONCEPT, and
+which therefore wants a same-named concept type.")
+
+(defparameter *function-word-features*
+  '("DET" "PREP" "PRONOUN" "AUXVERB" "COMP" "DUMMY" "POSS" "NGSTART-ONLY")
+  "Features marking a lexeme that carries STRUCTURE rather than content. These
+never become concepts, so their absence from the lattice is correct, not a gap.
+Checked after *content-word-features* and overriding it: `will' is (verb vspl
+auxverb future dummy) -- verb-ish, but an auxiliary.")
+
+(defun lexeme-features (word)
+  "WORD's features for classification, following a `jlike' model when the word
+has none of its own. A `jlike' entry stays unexpanded until the parser meets it,
+so a static walk of the lexicon sees a bare symbol unless it follows the chain --
+the same thing LEXICON-NOISE-P does for punctuation."
+  (let ((f (or (ignore-errors (pa::fe word))
+               (get word 'pa::feats)
+               (get word 'pa::features))))
+    ;; NIL is a LIST, so an empty feature list must not short-circuit here --
+    ;; it did, and every `jlike' word (automobile, pie, cherry ...) came back
+    ;; featureless and was silently skipped as a non-content word.
+    (cond ((and f (listp f)) f)
+          (f (list f))
+          (t (let ((model (get word 'pa::jlike)))
+               (and model (symbolp model) (not (eq model word))
+                    (lexeme-features model)))))))
+
+(defun structural-lexeme-p (word)
+  "True when WORD deliberately becomes STRUCTURE rather than a concept, so having
+no concept type is correct. Derived from the tables that make it so, never a hand
+list: `have' is a (poss) relation (*possession-verbs*), and pay/buy/sell collapse
+into one [EXCHANGE] frame (*commercial-perspectives*). A lint that reported these
+would be crying wolf about its own design decisions."
+  (or (member word *possession-verbs*)
+      (assoc word *commercial-perspectives*)))
+
+(defun content-lexeme-p (word)
+  "True when WORD is one the extractor would try to realize as a concept."
+  ;; A feature list can carry non-symbols -- `jlike' with irregulars stores
+  ;; conses, and numbers appear on the number words -- so keep only what names
+  ;; a feature before comparing.
+  (let ((feats (loop for f in (lexeme-features word)
+                     when (symbolp f) collect (string-upcase (symbol-name f)))))
+    (and feats
+         (intersection feats *content-word-features* :test #'string=)
+         (not (intersection feats *function-word-features* :test #'string=)))))
+
+(defun lexeme-concept-type (word)
+  "The concept type WORD would extract as, or NIL. Mirrors CONCEPT-FOR-NODE
+exactly -- name interned into :cg, with the irregular-verb fallback so `ate' is
+paired with EAT rather than reported as an orphan."
+  (let* ((name (intern (string-upcase (string word)) :cg))
+         (ct   (ignore-errors (cg::get-concept-type name))))
+    (or ct
+        (let ((root (ignore-errors (cg::verb-lemma-of-form name))))
+          (and root (ignore-errors
+                     (cg::get-concept-type (intern (string-upcase root) :cg))))))))
+
+(defun validate-lexicon (&key (stream *standard-output*) (limit 40))
+  "Cross-check the loaded LEXICON against the loaded ONTOLOGY and report the
+words that would fail extraction. Returns (values OK-P UNPAIRED).
+
+This is the companion to VALIDATE-ONTOLOGY, which checks the framework skeleton
+and says outright that domain lexemes are out of scope. They are the gap this
+fills: a word with no matching concept type parses cleanly and then stops
+extraction with `no concept type for lemma X\', one word at a time, at runtime.
+Run it after mounting a domain and find out all at once.
+
+The two halves are paired by NAME -- the lemma is interned into :cg and looked
+up -- so this walks the lexicon and asks the lattice the same question
+CONCEPT-FOR-NODE will ask later.
+
+Function words are skipped: they carry structure, never content, and their
+absence from the lattice is correct. So are lexemes that deliberately become
+structure -- see STRUCTURAL-LEXEME-P."
+  (ensure-cgraph)
+  (ensure-domain-lexicon)
+  (ensure-grammar)
+  (let* ((words     (pa:lexicon-words :sort t))
+         (content   (remove-if-not #'content-lexeme-p words))
+         (structural (remove-if-not #'structural-lexeme-p content))
+         (checkable (set-difference content structural))
+         ;; COPY-LIST before SORT: sort is destructive, and remove-if may share
+         ;; structure with CHECKABLE -- sorting in place corrupted it, so the
+         ;; paired count below read a mangled list and reported 38 of 40.
+         (unpaired  (sort (copy-list (remove-if #'lexeme-concept-type checkable))
+                          #'string< :key #'symbol-name))
+         (paired    (- (length checkable) (length unpaired))))
+    (format stream "~&Lexicon/ontology pairing~@[ (domain lexicon: ~a)~]~%"
+            *domain-lexicon-loaded*)
+    (format stream "  ~4d words in the lexicon~%" (length words))
+    (format stream "  ~4d of them content words the extractor would realize~%"
+            (length content))
+    (when structural
+      (format stream "  ~4d skipped -- they become structure, not concepts: ~(~{~a~^ ~}~)~%"
+              (length structural) structural))
+    (format stream "  ~4d paired with a concept type~%" paired)
+    (format stream "  ~4d UNPAIRED~%~%" (length unpaired))
+    (if (null unpaired)
+        (format stream "Every content word has a concept type.~%")
+        (progn
+          (format stream "These parse, then stop extraction with ~
+                          \"no concept type for lemma X\":~%")
+          (loop for w in unpaired
+                for i from 1
+                while (<= i limit)
+                do (format stream "  ~(~a~)~%" w))
+          (when (> (length unpaired) limit)
+            (format stream "  ... and ~d more~%" (- (length unpaired) limit)))
+          (format stream "~%Add each to your domain\'s concept-types.lisp, or drop the ~
+                          word if the domain does not need it.~%")))
+    (values (null unpaired) unpaired)))
+
+
 (defun validate-ontology (&key (profile :full) (stream *standard-output*))
   "Check the LOADED cgraph ontology against the framework vocabulary the extractor
 needs for PROFILE (default :full = every construction) and print a fidelity report
