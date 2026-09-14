@@ -1254,14 +1254,60 @@ nodes), so the two transfers still COREFER on the same buyer/seller concepts."
       (link-part (emit-clause give-ir)))
     exchange))
 
+(defparameter *possession-verbs* '(pa::have)
+  "Verbs that assert POSSESSION rather than an event, and so become a `poss'
+relation instead of a predicate concept. `have' only for now: `own' and
+`possess' are not in Marcus's dictionary and would need supplement entries
+first.")
+
+(defun possession-clause-p (ir)
+  "A clause IR to emit as possession rather than an event: a *possession-verbs*
+predicate whose agent AND neutral case are both plain entities.
+
+The entity guard is what keeps \"the girl has to go .\" out. `have' is entered
+with inf-obj/to-less-inf-obj features, so it also heads an OBLIGATION reading
+whose neutral case is a :clause; treating that as possession would say the girl
+possesses a going. Only an NP object is possession."
+  (and (eq (getf ir :kind) :clause)
+       (member (getf ir :pred) *possession-verbs*)
+       (let ((agt  (find 'pa::agt  (getf ir :cases) :key (lambda (c) (getf c :role))))
+             (neut (find 'pa::neut (getf ir :cases) :key (lambda (c) (getf c :role)))))
+         (and agt neut
+              (eq (getf (getf agt  :filler) :kind) :entity)
+              (eq (getf (getf neut :filler) :kind) :entity)))))
+
+(defun emit-possession (ir)
+  "Emit \"the girl has a ball .\" as [BALL]<-(poss)<-[GIRL] -- the same graph the
+GENITIVE \"the girl 's ball\" already produces, because the two say the same
+thing. Returns the POSSESSED concept, which is what the clause is about.
+
+Possession is a relation, not an event: there is no [HAVE] concept to look up,
+and asking for one is what made this fail (`no concept type for lemma HAVE').
+Reuses EMIT-POSSESSOR, so the genitive and the verb cannot drift apart.
+
+TENSE IS DROPPED, deliberately: a `poss' relation carries none, so \"had a
+ball\" and \"has a ball\" come out alike. The genitive has the same limitation,
+so the two stay consistent; distinguishing them would need a state concept with
+a time, which is more machinery than the reading justifies today."
+  (let* ((agt  (find 'pa::agt  (getf ir :cases) :key (lambda (c) (getf c :role))))
+         (neut (find 'pa::neut (getf ir :cases) :key (lambda (c) (getf c :role))))
+         (possessed (emit-filler (getf neut :filler) nil)))
+    (when possessed
+      (emit-possessor possessed (getf agt :filler)))
+    possessed))
+
 (defun emit-clause (ir)
   "Emit clause IR into the current context; return its predicate concept.
 Builds  [PRED]->(rel)->[FILLER]  for each mapped, filled case. A clausal-
 complement filler is embedded as a proposition and linked via the proposition
 relation instead of the case's entity-typed relation. A commercial-transaction
-clause (`pay') is instead promoted to an [EXCHANGE] frame (see emit-exchange)."
+clause (`pay') is instead promoted to an [EXCHANGE] frame (see emit-exchange),
+and a possession clause (`have') becomes a (poss) relation (see
+emit-possession) -- neither has a predicate concept."
   (when (commercial-clause-p ir)
     (return-from emit-clause (emit-exchange ir)))
+  (when (possession-clause-p ir)
+    (return-from emit-clause (emit-possession ir)))
   (note-type-label *predicate-root*)
   (let ((pred-concept (concept-for-node (getf ir :node) (getf ir :pred) *predicate-root*)))
     ;; Carry tense/aspect onto the predicate concept (not shown by the linear
