@@ -33,8 +33,15 @@
            (rule-gap (with-output-to-string (s)
                        (diagnose-parse "the girl is happy ." :stream s)))
            ;; --- a word the lexicon does not have ---
+           ;; The determiner before `pie' is load-bearing. READ-SENTENCE drops
+           ;; `zorks', so the parser only ever sees what is left; with a bare
+           ;; "the girl zorks pie ." that remainder is [girl][pie], which
+           ;; parsifal's NOUN-COMPOUND rule now reads as a compound NP -- a
+           ;; SUCCESSFUL np-utterance parse, and no failure report to check.
+           ;; "the girl the pie ." stays unparseable, so the unknown-word
+           ;; report is still what this case exercises.
            (word-gap (with-output-to-string (s)
-                       (diagnose-parse "the girl zorks pie ." :stream s)))
+                       (diagnose-parse "the girl zorks the pie ." :stream s)))
            ;; --- a sentence that DOES parse: no report, and T ---
            (parsed nil)
            (good (with-output-to-string (s)

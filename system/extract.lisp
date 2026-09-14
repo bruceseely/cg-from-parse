@@ -207,6 +207,14 @@ unrealized event). Chosen by the parse's INF-S vs THAT-S feature
 (clause-complement-form); falls back to *clausal-complement-type* if the catalog
 lacks a graph-compatible `situation'.")
 
+(defparameter *noun-modifier-relation* 'cg::kind
+  "Relation linking a head noun to a NOUN modifier: [PIE]->(kind)->[CHERRY],
+from PARSIFAL's `nmod' daughter (*noun-compound-rules*). Distinct from
+*adjective-relation*: `attr' has dest-type ATTRIBUTE, and a modifying noun like
+CHERRY lives under FOOD, so [PIE]->(attr)->[CHERRY] is type-invalid and would be
+dropped. `kind' is entity->entity and says what a speaker means by \"cherry
+pie\" -- a KIND of pie, as against apple or mince.")
+
 (defparameter *adjective-relation* 'cg::attr
   "Relation linking a noun to an adjective modifier: [NOUN]->(attr)->[ADJ]
 (attr: ENTITY -> ATTRIBUTE). Adjectives outside the ATTRIBUTE branch (e.g. an
@@ -341,6 +349,7 @@ recursion path, used to break structural cycles (as ctree1 does)."
               :number (np-number filler)
               :count  (np-count filler)
               :adjs  (adjective-lemmas filler)
+              :nmods (noun-modifier-lemmas filler)
               :poss  (np-possessor-ir filler seen)
               :appos (np-appos-name filler)
               :mods  (clausal-mods filler seen)))))
@@ -353,6 +362,7 @@ recursion path, used to break structural cycles (as ctree1 does)."
            :number (np-number filler)
            :count  (np-count filler)
            :adjs  (adjective-lemmas filler)
+           :nmods (noun-modifier-lemmas filler)
            :poss  (np-possessor-ir filler seen)
            :appos (np-appos-name filler)
            :mods  (clausal-mods filler seen)))))
@@ -788,6 +798,15 @@ may be a :parsifal or :cl symbol; e.g. \"some\" reads as CL:SOME.)"
 PP entirely, and a licensed one is already a case; see notes/next-steps.md."
   (loop for adj in (ignore-errors (pa::daughters 'pa::adj np-node))
         for w = (and adj (ignore-errors (pa::getr 'pa::word adj)))
+        when w collect w))
+
+(defun noun-modifier-lemmas (np-node)
+  "Noun words attached to NP-NODE as surface `nmod' daughters (CHERRY in \"a
+cherry pie\"), put there by PARSIFAL's NOUN-COMPOUND rule. The adjective
+counterpart is ADJECTIVE-LEMMAS; the two are kept apart because they emit
+different relations -- see *NOUN-MODIFIER-RELATION*."
+  (loop for nmod in (ignore-errors (pa::daughters 'pa::nmod np-node))
+        for w = (and nmod (ignore-errors (pa::getr 'pa::word nmod)))
         when w collect w))
 
 (defun binding-lemma (node)
@@ -1373,6 +1392,10 @@ concepts, e.g. an unbound trace)."
                 ;; Adjective modifiers: [NOUN]->(attr)->[ADJ].
                 (dolist (adj (getf filler :adjs))
                   (emit-modifier concept *adjective-relation* adj))
+                ;; Noun modifiers: [PIE]->(kind)->[CHERRY]. A separate relation
+                ;; from the adjective case -- see *noun-modifier-relation*.
+                (dolist (nmod (getf filler :nmods))
+                  (emit-modifier concept *noun-modifier-relation* nmod))
                 ;; Genitive possessor: [POSSESSOR]->(poss)->[NOUN] (possessor
                 ;; is the ANIMATE source, this noun the dest).
                 (let ((poss (getf filler :poss)))
