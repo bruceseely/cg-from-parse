@@ -201,8 +201,12 @@ customizable cgraph-types) via `test/test-setup.lisp`, which binds
 - **Imperatives: working.** PARSIFAL supplies the implicit 2nd-person subject, so
   the agent comes through as "you", realized as an indexical individual
   `[PERSON: You]`. *"see the dog ."* → `[SEE]-(agnt)→[PERSON: You] (obj)→[DOG: #].`
-  (Personal pronouns generally map to indexical individuals; anaphora resolution
-  is future work.) See `test/extract-imperative-headless.lisp`.
+  (A personal pronoun maps to an indexical individual unless the narrow anaphora
+  resolver finds it an antecedent — a pronoun argument of an embedded complement,
+  or a genitive possessive, corefers with a subject instead: *"the man sees his
+  dog ."* → `[SEE]-(agnt)→[MAN: # *x] (obj)→[DOG: #]←(poss)←[MAN: # *x].` See
+  `test/extract-anaphora-headless.lisp` and `notes/next-steps.md` §12.)
+  See `test/extract-imperative-headless.lisp`.
 - **Yes-no questions: working.** A yes-no question has the same propositional
   content as the declarative — it asks whether that proposition holds — so it
   extracts to the identical graph (semantically, that proposition used as a

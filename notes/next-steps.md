@@ -103,6 +103,36 @@
 > (run-all-suites.sh): cg 24/24, parsifal + parsifal-integration + cgraph all PASS.
 > Extractor-only, so NOT in parsifal EXTENSIONS.md (no parser change).
 >
+> POSSESSIVE ANAPHORA -- DONE (2026-09-14), extractor-only, extending #12.
+>   "John will drive his automobile to Baltimore ." ->
+>     [DRIVE:@future]-(agnt)->[PERSON:John *x] (dest)->[BALTIMORE]
+>                     (obj)->[AUTOMOBILE:#]<-(poss)<-[PERSON:John *x]
+> Before this, a possessive pronoun never resolved: the (poss) arc came from a
+> stray indexical [PERSON: He] that had nothing to do with the agent. The
+> resolver's first configuration (#12) only fires for a pronoun that is a CASE
+> FILLER of an embedded complement, and a genitive possessor is a filler of no
+> clause at all, so it always fell through to the indexical.
+> SECOND CONFIGURATION (system/extract.lisp, possessive-antecedent): a 3rd-person
+> possessive pronoun corefers with the SUBJECT of the clause it sits in. This one
+> is SAME-clause, which #12's rule deliberately avoids -- and is safe for a reason
+> that does not hold there: a possessor sits inside an NP, so it is never a
+> co-argument of the subject and Principle B never applies ("John drives his car"
+> binds where "John sees him" may not). The guard is circularity instead: the
+> possessive must not sit inside the subject NP itself, or the antecedent would
+> contain the anaphor -- "his dog sees the man ." keeps [PERSON: He]
+> (node-dominated-p compares PARSIFAL `collectw' leaf sets, so no parent pointers
+> are needed). A subject that is itself a resolvable pronoun hands on ITS
+> antecedent, so "the man knows that he sees his dog ." puts [MAN:?x1] on the
+> (poss) arc rather than an intermediate pronoun node no concept is registered
+> under. Same agreement gate as #12 (number/person/gender), same *resolve-anaphora*
+> switch, same emission path: a resolved possessive becomes a :trace IR and the
+> EXISTING emit-trace machinery realizes it -- same context shares one concept node
+> (the [PERSON: John *x] above IS the agent's concept), a crossed context mints
+> *x/?x. Plumbing: filler->ir takes :possessor-of, np-possessor-ir passes the host
+> NP, anaphor-antecedent dispatches on it. Round-trips: say-graph gives back "The
+> man sees his dog." Tests in test/extract-anaphora-headless.lisp (resolve,
+> possessive-in-subject negative, embedded chain). 32/32 headless green.
+>
 > NEXT UP: anaphora (#12, still deferred) or a new area.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
@@ -476,11 +506,14 @@ same-clause negative, no-pronoun control). Whole stack green: cg 25/25, all 4
 suites PASS. Extractor-only, so NOT in parsifal EXTENSIONS.md.
 
 STILL OPEN under #12 (each its own follow-up): multiple candidates with
-salience/recency ranking (currently the only candidate is the matrix subject);
-antecedents other than the matrix subject (e.g. matrix object, or a non-subject
+salience/recency ranking (currently the only candidate is a subject);
+antecedents other than a subject (e.g. matrix object, or a non-subject
 NP); reflexives (not in the lexicon -- himself/herself dropped); and CROSS-sentence
 anaphora (needs multi-sentence discourse, which we don't parse yet).
 DONE 2026-07-15: object + plural pronouns (see the #12 banner above).
+DONE 2026-09-14: GENITIVE POSSESSIVES ("John will drive his automobile to
+Baltimore ." -> his = John), the resolver's second configuration -- same-clause,
+subject antecedent, circularity-guarded. See the POSSESSIVE ANAPHORA banner above.
 
 ## 10. Ergonomic driver  — DONE
 `cg-from-parse:parse-and-extract` (system/driver.lisp): string → cgraph graph.

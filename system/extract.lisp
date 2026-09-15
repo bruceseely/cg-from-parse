@@ -303,9 +303,11 @@ head-noun word."
   (or (ignore-errors (pa::getc 'pa::pred node))
       (entity-lemma node)))
 
-(defun filler->ir (filler seen)
+(defun filler->ir (filler seen &key possessor-of)
   "Convert one case FILLER (a PARSIFAL node) into a filler IR. SEEN is the
-recursion path, used to break structural cycles (as ctree1 does)."
+recursion path, used to break structural cycles (as ctree1 does). POSSESSOR-OF is
+the NP this FILLER is the genitive possessor of, when it is one -- only anaphora
+resolution reads it (a possessive pronoun corefers with its clause's subject)."
   (cond
     ((null filler) (list :kind :empty))
     ;; A proper name ("Mitch", "Chicago"): a named individual [TYPE: Name].
@@ -338,7 +340,7 @@ recursion path, used to break structural cycles (as ctree1 does)."
     ;; I/you, or an unresolved he).
     ((pronoun-lemma-p (effective-lemma filler))
      (let* ((p    (effective-lemma filler))
-            (ante (anaphor-antecedent filler seen)))
+            (ante (anaphor-antecedent filler seen :possessor-of possessor-of)))
        (if ante
            (list :kind :trace :binding ante :lemma (effective-lemma ante)
                  :words (pa::node-words filler))
@@ -744,11 +746,12 @@ an extraction actually emits."
 ;;; --- Anaphora resolution (pronoun -> antecedent) --------------------------
 ;;; PARSIFAL does NOT bind pronouns (unlike traces/relative-gaps/wh, which are
 ;;; syntactic movement and arrive bound), so the extractor must pick the
-;;; antecedent itself. We resolve one narrow, binding-theory-safe configuration: a
-;;; 3rd-person pronoun that is an ARGUMENT (subject or object) of an embedded
-;;; that-complement corefers with the MATRIX subject ("the man believes that he sees
-;;; the dog" -> he = the man; "the man believes that the dog sees him" -> him = the
-;;; man). Number/person/gender must agree, and it works for plural too ("the men know
+;;; antecedent itself. We resolve two narrow, binding-theory-safe configurations.
+;;;
+;;; (1) COMPLEMENT ARGUMENT: a 3rd-person pronoun that is an ARGUMENT (subject or
+;;; object) of an embedded that-complement corefers with the MATRIX subject ("the
+;;; man believes that he sees the dog" -> he = the man; "the man believes that the
+;;; dog sees him" -> him = the man). Number/person/gender must agree, and it works for plural too ("the men know
 ;;; that they see the dog" -> they = the men). Binding stays safe: the antecedent is
 ;;; the matrix subject, a different clause, so it is never the pronoun's co-argument
 ;;; (a same-clause pronoun like "the man sees him" is left alone), and an embedded
@@ -756,12 +759,22 @@ an extraction actually emits."
 ;;; antecedent ("...he sees him" keeps him free). A resolved pronoun becomes a :trace
 ;;; IR bound to the antecedent node; emit-trace then realizes the coreference
 ;;; (cross-context here -> *x/?x variables), exactly as for a control/raising trace.
+;;;
+;;; (2) GENITIVE POSSESSOR: a 3rd-person possessive pronoun corefers with the
+;;; SUBJECT of the clause it sits in -- "John will drive his automobile to
+;;; Baltimore ." -> his = John, so the (poss) arc comes from the agent's own
+;;; concept rather than from a stray [PERSON: He]. This one is same-clause, but
+;;; binding theory still comes free: a possessor inside an NP is NOT a co-argument
+;;; of the subject, so Principle B never applies ("John drives his car" binds
+;;; where "John sees him" may not). The guard here is circularity, not binding --
+;;; the possessive must not sit inside the subject NP itself ("his automobile
+;;; drives ...", where the antecedent would contain the anaphor).
 
 (defvar *resolve-anaphora* t
   "When true, attempt the narrow intra-sentence anaphora resolution above; a
 resolvable pronoun corefers with its antecedent, else it stays an indexical
-individual ([PERSON: He]). Deliberately conservative (one syntactic
-configuration, agreement-gated); set NIL to disable resolution entirely.")
+individual ([PERSON: He]). Deliberately conservative (two syntactic
+configurations, agreement-gated); set NIL to disable resolution entirely.")
 
 (defparameter *pronoun-gender*
   '(("HE" . :male) ("HIM" . :male) ("SHE" . :female) ("HER" . :female))
@@ -820,18 +833,62 @@ either side is permissive)."
   "True when NODE is a personal-pronoun NP."
   (and (pronoun-lemma-p (ignore-errors (effective-lemma node))) t))
 
-(defun anaphor-antecedent (pronoun-node seen)
+(defun node-dominated-p (node ancestor)
+  "True when ANCESTOR spans NODE -- every input word NODE covers is one ANCESTOR
+covers too. A containment test that needs no parent pointers: PARSIFAL's `collectw'
+returns a node's (POSITION . WORD) leaves, and one node lies inside another exactly
+when its leaves are a subset of the other's."
+  (let ((ns (ignore-errors (pa::collectw node)))
+        (as (ignore-errors (pa::collectw ancestor))))
+    (and ns as (subsetp ns as :test #'equal))))
+
+(defun possessive-antecedent (pronoun-node host-np seen)
+  "Antecedent NODE for a GENITIVE POSSESSIVE pronoun -- \"John will drive his
+automobile\" -> his = John -- or NIL to leave it an indexical. HOST-NP is the NP
+PRONOUN-NODE is the possessor of; SEEN is filler->ir's clause path, so (first seen)
+is the clause the possessive sits in.
+
+The candidate is that clause's SUBJECT, gated three ways: it must AGREE with the
+possessive (number/person/gender, the same test the complement rule uses); it must
+not BE or CONTAIN host-np, else the antecedent would contain the anaphor (\"his
+automobile drives ...\"); and a subject that is itself a resolvable pronoun hands on
+its own antecedent, so the coreference lands on the referent rather than on an
+intermediate pronoun node no concept is registered under.
+
+No Principle B test is needed: a possessor sits inside an NP, so it is never a
+co-argument of the subject (see (2) in the section comment)."
+  (let* ((clause (first seen))
+         (subj   (and clause (clause-subject-node clause))))
+    (when (and subj host-np
+               (not (eq subj host-np))
+               (not (node-dominated-p host-np subj))
+               (anaphora-agree-p pronoun-node subj))
+      (if (pronoun-node-p subj)
+          (or (anaphor-antecedent subj seen) subj)
+          subj))))
+
+(defun anaphor-antecedent (pronoun-node seen &key possessor-of)
   "Antecedent NODE for PRONOUN-NODE under the narrow resolution, or NIL to leave it
 an indexical. SEEN is filler->ir's ancestor path; for a pronoun inside an embedded
-complement it is (embedded-clause matrix-clause ...). We resolve iff *resolve-anaphora*
-is on, PRONOUN-NODE is an ARGUMENT (subject OR object) of an embedded that-complement,
-and it agrees with the matrix subject (number/person/gender). Binding stays safe: the
+complement it is (embedded-clause matrix-clause ...).
+
+POSSESSOR-OF, when non-NIL, is the NP whose genitive possessor PRONOUN-NODE is
+(\"his automobile\"); that is configuration (2) above, and it resolves under
+possessive-antecedent instead of the complement rule below -- a possessive is not a
+case filler of any clause, so the argument test could never fire for it.
+
+Otherwise we resolve iff *resolve-anaphora* is on, PRONOUN-NODE is an ARGUMENT
+(subject OR object) of an embedded that-complement, and it agrees with the matrix
+subject (number/person/gender). Binding stays safe: the
 antecedent is the MATRIX subject, a different clause, so it is never PRONOUN-NODE's
 co-argument (Principle B holds for free). The one extra hazard is an embedded OBJECT
 pronoun whose embedded SUBJECT ALSO corefers with that same matrix subject -- \"the man
 knows that he sees him\" must not make he = him; so an object pronoun is blocked when
 the embedded subject is itself a pronoun that agrees with the antecedent."
   (when *resolve-anaphora*
+    (when possessor-of
+      (return-from anaphor-antecedent
+        (possessive-antecedent pronoun-node possessor-of seen)))
     (let ((embedded (first seen))
           (matrix   (second seen)))
       (when (and embedded matrix
@@ -885,7 +942,7 @@ NODE's `det' daughter is a poss-det whose `np' daughter is the possessor poss-np
 so the possessor gets full treatment -- a common noun (\"the man's\" -> :entity),
 a proper name (\"mitch's\" -> :named), or a pronoun."
   (let ((poss (np-possessor node)))
-    (and poss (filler->ir poss seen))))
+    (and poss (filler->ir poss seen :possessor-of node))))
 
 (defun np-appos-name (node)
   "The appositive name of a common-noun NP NODE, e.g. \"the dog , spot\" -> \"Spot\",
