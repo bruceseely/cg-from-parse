@@ -49,7 +49,9 @@ Found without asking the user for anything new. cgraph already symlinks the
 mounted repo's type files into ~/.cgraph/types, so resolving that symlink
 lands in the domain repo itself; an explicit *external-types-directory* wins
 when one was passed. A user therefore drops lexicon.dict beside the type files
-and it is picked up -- one directory, one setting, which is the whole point."
+and it is picked up -- one directory, one setting, which is the whole point.
+(cgraph resolves the same directory for itself, for the GENERATION side of the
+vocabulary: a domain's lexicon-overrides.lisp, saying how its types are worded.)"
   (or (let ((ext (and (boundp 'cg::*external-types-directory*)
                       cg::*external-types-directory*)))
         (and ext (uiop:ensure-directory-pathname ext)))
