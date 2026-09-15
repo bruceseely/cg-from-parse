@@ -133,6 +133,47 @@
 > man sees his dog." Tests in test/extract-anaphora-headless.lisp (resolve,
 > possessive-in-subject negative, embedded chain). 32/32 headless green.
 >
+> POSSESSIVE `HER' -- DONE (2026-09-14), parser + generator, one sentence's worth
+> of bug in two layers.
+>   "the woman sees her dog ." -> [SEE]-(agnt)->[WOMAN:#*x]
+>                                      (obj)->[DOG:#]<-(poss)<-[WOMAN:#*x]
+>                                 say: "The woman sees her dog."
+>   "the woman sees her ."     -> [SEE]-(agnt)->[WOMAN:#] (obj)->[PERSON:She]
+>                                 say: "The woman sees her."
+> PARSER (parsifal, EXTENSIONS.md #11): `her' is BOTH the accusative pronoun and
+> the possessive determiner, and Marcus's dictionary enters only the first --
+> giving the possessive to `hers', which in English is the INDEPENDENT possessive
+> ("the dog is hers") and never a determiner. So "her dog" parsed as the object
+> `her' plus a stranded `dog', and the head noun was dropped without a word:
+> [SEE]-(agnt)->[WOMAN:#] (obj)->[PERSON: She], no DOG anywhere. Marking `her'
+> poss-pronoun instead would fix that sentence by breaking "sees her" (PRONOUN
+> labels a poss-pronoun NP a poss-np, and POSSESSIVE-DET then waits for a head
+> noun that never comes), so the ambiguity is resolved from CONTEXT, in the shape
+> of Marcus's own WHAT-DIAG: supplement.dict marks `her' `poss-ambig', and
+> POSS-PRONOUN-DIAG (*possessive-pronoun-rules*, priority 4 in npool) adds
+> `poss-pronoun' when the next cell starts a noun group. It marks `poss-diag' on
+> both branches, or the no-op branch would match itself forever. No extractor
+> change: once the parse is right, the genitive path and the possessive-anaphora
+> rule above already handle it (and "the man sees her dog ." keeps [PERSON: She]
+> on the gender clash, which is the agreement gate doing its job).
+> GENERATOR (cgraph): an INDEXICAL pronoun -- an individual whose NAME is a
+> pronoun, which is what an unresolved `her'/`he'/`you' leaves in the graph --
+> was realized as an ordinary proper name: "The woman sees She.", "She's dog",
+> "You sees the dog." A pronoun inflects for CASE, which a name never does, and
+> carries a PERSON, which a name always settles as third.
+> *personal-pronoun-forms* (generation/lexicon.lisp) gives the case forms plus
+> person and number; realize-np answers from it before any article/modifier logic
+> (a pronoun IS a noun phrase, and is what a revisit would produce anyway), the
+> possessive-prefix path uses it for "her dog" over "She's dog", and
+> concept-person/concept-number read it so the verb agrees -- which fixes
+> "I see the dog." / "You see the dog." as the same bug's other face.
+> Tests: parsifal test/integration/gram1-possessive-pronoun-test.lisp (both
+> readings, subject genitive, unambiguous pronouns untouched); cgraph
+> generation-test (8 indexical-pronoun cases) -- AND generation-test added to
+> test-all, where it had never been listed though green and built, so the one
+> suite checking what the generator SAYS was ungated; cg-from-parse
+> extract-anaphora-headless (both readings end to end). Whole stack green.
+>
 > NEXT UP: anaphora (#12, still deferred) or a new area.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in

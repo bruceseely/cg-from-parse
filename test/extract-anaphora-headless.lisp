@@ -29,6 +29,12 @@
 ;;; contain the anaphor: "his dog sees the man ." has the possessive inside the
 ;;; SUBJECT NP, so it stays an indexical [PERSON: He] (possessive-antecedent's
 ;;; node-dominated-p guard).
+;;;
+;;; `her' exercises both halves at once, because it is BOTH the determiner and
+;;; the accusative pronoun and parsifal's POSS-PRONOUN-DIAG decides which from
+;;; the next word: "the woman sees her dog ." is a genitive that resolves to the
+;;; subject, "the woman sees her ." an object pronoun that Principle B leaves
+;;; free -- and nothing of the sentence may go missing in either.
 ;;; know/see/man/woman/dog are dictionary + test-type driven, so this runs strict
 ;;; (:error). (KNOW is the matrix verb because it is a cgraph test-type; `believe'
 ;;; parses the same but has no concept type.)
@@ -68,8 +74,10 @@
         (plain (%anaphora-graph "the man knows that the boy sees the dog .")) ; no pronoun
         (poss  (%anaphora-graph "the man sees his dog ."))                   ; genitive resolve
         (spos  (%anaphora-graph "his dog sees the man ."))                   ; possessive IN subject
-        (eposs (%anaphora-graph "the man knows that he sees his dog .")))    ; genitive, embedded
-    (let ((pass (and he she obj plur two clash same plain poss spos eposs
+        (eposs (%anaphora-graph "the man knows that he sees his dog .")) ; genitive, embedded
+        (herp  (%anaphora-graph "the woman sees her dog ."))              ; `her' = determiner
+        (hera  (%anaphora-graph "the woman sees her .")))                 ; `her' = accusative
+    (let ((pass (and he she obj plur two clash same plain poss spos eposs herp hera
                      ;; he -> the man: [MAN] appears as BOTH a defining (#*x) and a
                      ;; bound (?x) coreferring occurrence; no indexical [PERSON:He].
                      (search "KNOW" he)
@@ -114,11 +122,19 @@
                      (search "[MAN:#*X" eposs)
                      (search "(AGNT)→[MAN:?X" eposs)
                      (search "[DOG:#]←(POSS)←[MAN:?X" eposs)
-                     (not (search "PERSON:HE" eposs)))))
+                     (not (search "PERSON:HE" eposs))
+                     ;; `her' is BOTH readings (parsifal POSS-PRONOUN-DIAG), and
+                     ;; both reach the graph: as a determiner it is a genitive
+                     ;; resolving to the subject, as an object it is the object.
+                     (search "(AGNT)→[WOMAN:#*X" herp)
+                     (search "[DOG:#]←(POSS)←[WOMAN:#*X" herp)
+                     (search "(AGNT)→[WOMAN:#]" hera)
+                     (search "(OBJ)→[PERSON:SHE" hera)
+                     (not (search "DOG" hera)))))
       (when verbose
         (format t "~&he:    ~a~%she:   ~a~%clash: ~a~%same:  ~a~%plain: ~a~%~
-                   poss:  ~a~%spos:  ~a~%eposs: ~a~%"
-                he she clash same plain poss spos eposs))
+                   poss:  ~a~%spos:  ~a~%eposs: ~a~%herp:  ~a~%hera:  ~a~%"
+                he she clash same plain poss spos eposs herp hera))
       (format t "~&extract-anaphora-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
       pass)))
 
