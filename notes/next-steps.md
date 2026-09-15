@@ -175,6 +175,16 @@
 > extract-anaphora-headless (both readings end to end). Whole stack green.
 >
 > NEXT UP: anaphora (#12, still deferred) or a new area.
+>
+> OPEN ARCHITECTURE QUESTION (raised 2026-09-15, deferred -- no work started):
+> is PARSIFAL the right front end? Written up in notes/parser-front-ends.md --
+> the coverage-vs-determinism split behind the recent one-off fixes (of the 11
+> parsifal EXTENSIONS.md entries, ~3 are determinism's bill and 8 are a 1978
+> demonstration grammar's coverage), why the IR (`parse->ir' -> `ir->cgraph') is
+> the seam a second front end would target, what ERG/MRS would give and cost (its
+> ARGn are NOT thematic roles -- Marcus's case frames are what make extract.lisp
+> small), the alternatives, and whether any of it can be Lisp (LKB is, and runs
+> the ERG -- worth verifying). Nothing in the code depends on that note.
 
 Punch list for continuing the PARSIFAL → conceptual-graph extractor. Roughly in
 priority order. Current state (2026-06-25): transitive clauses, control
