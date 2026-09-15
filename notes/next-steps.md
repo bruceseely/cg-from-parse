@@ -176,6 +176,26 @@
 >
 > NEXT UP: anaphora (#12, still deferred) or a new area.
 >
+> MULTI-SENTENCE KB EXPERIMENT -- DONE 2026-09-15 (experiments/multi-sentence-kb.lisp,
+> findings in notes/kb-experiment-findings.md). First time cgraph's REASONING half
+> (project/maximal-join/query/say-query-results) was pointed at extracted graphs:
+> 26 sentences, one domain, strict typing. Query works -- real question answering
+> over a KB built from English, answers said back in English. Accumulation does
+> not: include-cgraph collapsed 24 graphs into 1 ([EAT] with AGNT x8), because
+> every extracted event is GENERIC and joining two generic same-type concepts is
+> exactly what the formation rules license; and "Sue" was 13 distinct individuals,
+> because named-concept mints a fresh individual per extraction. One failure, two
+> directions: nothing in an extracted graph says WHICH thing it is about. Tested
+> the fix as a post-pass (individuate events + one individual per (type,name)):
+> Sue -> 1 id, same-individual-p T, 24 graphs -> 2, zero events wrongly merged,
+> and the 2 are the right 2 (one Sue-hub, one for the rest). NEXT, if this is the
+> direction: event referents + a session-scoped name registry in the emitter --
+> the latter is also what CROSS-SENTENCE anaphora needs, so #12's open half and
+> this are the same problem. Also FOUND + FIXED a real bug the experiment
+> surfaced: possession-clause-p demanded a common noun on BOTH sides, so "Sue has
+> a dog ." died looking for a HAVE concept type while "the girl has a ball ."
+> worked (the guard is about the embedded CLAUSE, not the common noun).
+>
 > OPEN ARCHITECTURE QUESTION (raised 2026-09-15, deferred -- no work started):
 > is PARSIFAL the right front end? Written up in notes/parser-front-ends.md --
 > the coverage-vs-determinism split behind the recent one-off fixes (of the 11

@@ -1448,21 +1448,38 @@ relation instead of a predicate concept. `have' only for now: `own' and
 `possess' are not in Marcus's dictionary and would need supplement entries
 first.")
 
+(defparameter *np-filler-kinds* '(:entity :named :trace :query :backref)
+  "Filler IR kinds that came from a NOUN PHRASE. Everything a case can be filled
+by except :clause (an embedded clause) and :empty (nothing).")
+
+(defun np-filler-p (filler)
+  "True when FILLER IR is an NP of some kind -- a common noun, a name, a bound
+gap, a wh-query -- rather than an embedded clause or an empty case."
+  (and (member (getf filler :kind) *np-filler-kinds*) t))
+
 (defun possession-clause-p (ir)
   "A clause IR to emit as possession rather than an event: a *possession-verbs*
-predicate whose agent AND neutral case are both plain entities.
+predicate whose agent AND neutral case are both filled by NOUN PHRASES.
 
-The entity guard is what keeps \"the girl has to go .\" out. `have' is entered
-with inf-obj/to-less-inf-obj features, so it also heads an OBLIGATION reading
-whose neutral case is a :clause; treating that as possession would say the girl
-possesses a going. Only an NP object is possession."
+The NP guard is what keeps \"the girl has to go .\" out. `have' is entered with
+inf-obj/to-less-inf-obj features, so it also heads an OBLIGATION reading whose
+neutral case is a :clause; treating that as possession would say the girl
+possesses a going. Only an NP object is possession.
+
+NP, not :entity specifically. Requiring a common noun on both sides silently
+excluded every possessor with a NAME -- \"Sue has a dog .\" is a :named filler,
+so it fell through to the event path and died looking for a concept type for
+HAVE, while \"the girl has a ball .\" worked. A bound gap (\"the man that has a
+dog\") and a wh-query (\"who has a dog ?\") are possession for the same reason:
+what the guard is really about is the CLAUSE, which is the one thing an NP
+kind is not."
   (and (eq (getf ir :kind) :clause)
        (member (getf ir :pred) *possession-verbs*)
        (let ((agt  (find 'pa::agt  (getf ir :cases) :key (lambda (c) (getf c :role))))
              (neut (find 'pa::neut (getf ir :cases) :key (lambda (c) (getf c :role)))))
          (and agt neut
-              (eq (getf (getf agt  :filler) :kind) :entity)
-              (eq (getf (getf neut :filler) :kind) :entity)))))
+              (np-filler-p (getf agt  :filler))
+              (np-filler-p (getf neut :filler))))))
 
 (defun emit-possession (ir)
   "Emit \"the girl has a ball .\" as [BALL]<-(poss)<-[GIRL] -- the same graph the

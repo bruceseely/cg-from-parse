@@ -9,6 +9,10 @@
 ;;; the predicate -- "no concept type for lemma HAVE" -- when there is no
 ;;; [HAVE] concept to find and never should be.
 ;;;
+;;; A possessor may equally be a NAME ("mitch has a ball ." -> [BALL]<-(poss)<-
+;;; [PERSON: Mitch]), a bound gap or a wh-query: what the guard below is really
+;;; about is the embedded CLAUSE, not the common noun.
+;;;
 ;;; The guards matter as much as the happy path:
 ;;;
 ;;;   "the girl has to go ."       OBLIGATION, not possession. `have' carries
@@ -52,11 +56,13 @@
 (defun extract-possession-headless-test (&optional (verbose t))
   (let* ((have     (%possession-graph "the girl has a ball ." :error))
          (past     (%possession-graph "the girl had a ball ." :error))
+         ;; a NAMED possessor -- mitch is in the dictionary, PERSON in test-types
+         (named    (%possession-graph "mitch has a ball ." :error))
          (genitive (%possession-graph "the boy sees the girl 's ball ." :error))
          ;; obligation: must NOT become possession. Run :create so a missing
          ;; HAVE type cannot mask the check -- we want to see what it emits.
          (oblig    (%possession-graph "the girl has to go ." :create))
-         (pass (and have past genitive
+         (pass (and have past genitive named
                     ;; the possessed thing is the head, with the owner on a poss
                     (search "[BALL" have)
                     (search "(POSS)←[GIRL" have)
@@ -67,13 +73,20 @@
                     ;; the genitive is untouched and uses the same relation
                     (search "(OBJ)→[BALL" genitive)
                     (search "(POSS)←[GIRL" genitive)
+                    ;; a possessor with a NAME is a possessor. The guard used to
+                    ;; demand a common noun on BOTH sides, so every named owner
+                    ;; fell through to the event path and died looking for a
+                    ;; concept type for HAVE.
+                    (search "[BALL" named)
+                    (search "(POSS)←[PERSON:MITCH" named)
+                    (not (search "[HAVE" named))
                     ;; obligation is NOT possession: `go' survives as a predicate
                     oblig
                     (search "GO" oblig)
                     (not (search "(POSS)" oblig)))))
     (when verbose
-      (format t "~&have:      ~a~%past:      ~a~%genitive:  ~a~%oblig:     ~a~%"
-              have past genitive oblig))
+      (format t "~&have:      ~a~%past:      ~a~%named:     ~a~%genitive:  ~a~%oblig:     ~a~%"
+              have past named genitive oblig))
     (format t "~&extract-possession-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
     pass))
 
