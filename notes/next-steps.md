@@ -1,5 +1,74 @@
 # cg-from-parse — next steps
 
+## NEXT ACTION (set 2026-09-23): identity across sentences
+
+**Build event referents + a session-scoped name registry, in the emitter.**
+
+Two measurements now point at the same place. `kb-experiment-findings.md`:
+`include-cgraph` collapsed 24 graphs into 1 (`[EAT]` with AGNT x8) and "Sue" was
+13 distinct individuals. `intake-survey-findings.md`: on a wider corpus "Sue" is
+29 mentions carrying **28 distinct ids**, while the parser refused nothing
+in-register. Nothing in an extracted graph says WHICH thing it is about, and that
+— not the front end — is what stops a knowledge base being a knowledge base.
+
+### The two halves
+
+1. **Event individuation.** Every predicate concept gets an individual referent
+   — *this* eating, not eating in general. This is the half that fixes `[EAT]`
+   x8, and only this half: the join runs `include-cgraph` -> `combine-cgraphs` ->
+   `graphs-share-concepts-p` -> `find-automatic-correspondences` over
+   `collect-nodes`, which walks graph nodes and never consults the context, so no
+   amount of cache-wiring touches it. Two referent-less `[EAT]`s correspond
+   automatically and the formation rules license the merge.
+2. **A name registry.** One individual per (type, name) per knowledge base,
+   rather than per extraction. This is the half that fixes 28 Sues, and it is the
+   same problem as CROSS-SENTENCE anaphora (#12 above is intra-sentence by
+   construction) — build it once.
+
+### What was found out about the mechanism (2026-09-23)
+
+cgraph already has the identity machinery and the extractor never reaches it:
+
+- `cgraph/system/core/context.lisp` — `cache-concept` (its comment: *"cache all
+  concepts for co-reference linking"*) and `retrieve-concept`, keyed by
+  `(type, individual)`, `(type, id)` or `(type, properties)`.
+- `extract.lisp:1794` binds a **fresh child context per extraction**, so a
+  lookup would search a per-sentence context, not the KB's.
+- `extract.lisp:1795` carries identity in `*node->concept*`, a hash table
+  **rebound per extraction and keyed by parse node** — intra-sentence by
+  construction. Keep it for intra-sentence coref; the registry is the layer above.
+- `named-concept` (`extract.lisp:1603`) calls `make-individual` directly.
+  `retrieve-concept` is not called anywhere in cg-from-parse.
+
+**Look up by PROPERTIES, not by individual.** `individuals-equal` was fixed to
+compare the id (cgraph `known-issues.md`), so two Sues with different ids are
+correctly not equal and `retrieve-concepts-having-individual` will not find the
+existing one. The working path is `retrieve-concept ctype '(:name "Sue")`.
+
+### Costs, known in advance
+
+- Every expected test string gains a referent (`[EAT: #12]`), across ~33 headless
+  suites.
+- `say` must keep rendering an individuated event as "eats", not "the eating
+  #12". Check the generation side before changing the emitter.
+- Graph maintenance is **destructive by design** (copying whole graphs would
+  dangle any held concept reference), so a harness measures BEFORE joining.
+
+### The baseline to beat
+
+Already established as a post-pass in `experiments/multi-sentence-kb.lisp` §6, so
+the target numbers are known rather than hoped for: "Sue" -> 1 id,
+`same-individual-p` T, 24 graphs -> 2 (one Sue-hub, one for the rest), zero events
+wrongly merged. Residue `[COMMERCIAL-EXCHANGE: #] part x2` is the frame's two
+halves, not a merge. Re-run both experiments to confirm.
+
+### And then a decision, not a bug
+
+`include-cgraph` joining on ingest is a **policy**. A store that keeps sentences
+separate and joins on demand answers queries just as well and cannot invent
+anything. Decide this after the two halves land, not before.
+
+
 > GENITIVES — DONE (2026-07-01), the first PARSIFAL-side (grammar) feature.
 > Common-noun, proper-name, AND possessive-pronoun genitives all parse and
 > extract:
