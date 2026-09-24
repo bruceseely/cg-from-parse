@@ -196,6 +196,26 @@
 > a dog ." died looking for a HAVE concept type while "the girl has a ball ."
 > worked (the guard is about the embedded CLAUSE, not the common noun).
 >
+> INTAKE SURVEY -- DONE 2026-09-23 (experiments/intake-survey.lisp, findings in
+> notes/intake-survey-findings.md). Classifies every refusal by the LAYER that
+> produced it -- lexicon / grammar / ontology-no-type / ontology-contract /
+> extractor -- because only the grammar bucket argues for changing parsers. 87
+> sentences, two bands. Band A (in-register, built only from the 61 content words
+> PARSIFAL's dictionary and the ontology BOTH know): 61/62, zero grammar gaps,
+> zero lexicon gaps, zero extractor bugs; the one non-entry is the correct
+> contract refusal ("Bob attends a party"). Band B (stretch): ontology/lexicon
+> gaps outnumber grammar gaps 14 to 5. The 5 real grammar gaps are coordination
+> (clausal + NP), object relatives, and predicate adjectives. Notable: negation,
+> stacked adjuncts, adverb+PP and past tense all parse; subject control ("Sue
+> wants to eat a pie") and the existential ("there is a dog in the kitchen") parse
+> too and are stopped ONLY by WANT and BE having no concept type. Also: `thought'
+> is in both vocabularies by name but morpho reads it as the past of `think', so
+> name-pairing (validate-lexicon) overstates the intersection. Identity scales as
+> the KB experiment predicted -- "Sue" 29 mentions, 28 ids -- and the mechanism is
+> now located: cgraph's context HAS an identity cache (cache-concept /
+> retrieve-concept) and the extractor never calls it (extract.lisp:1794 binds a
+> fresh child context per extraction; :1795 keys identity on parse nodes).
+>
 > OPEN ARCHITECTURE QUESTION (raised 2026-09-15, deferred -- no work started):
 > is PARSIFAL the right front end? Written up in notes/parser-front-ends.md --
 > the coverage-vs-determinism split behind the recent one-off fixes (of the 11

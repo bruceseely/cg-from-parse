@@ -1,7 +1,15 @@
 # Parser front ends — is PARSIFAL the right parser for this?
 
-**Status: OPEN. Raised and deferred 2026-09-15 (time), nothing started.**
+**Status: OPEN, but now MEASURED. Raised and deferred 2026-09-15 (time).**
 Decision record, not a plan of record. Nothing in the code depends on this file.
+
+> **2026-09-23: the coverage-vs-determinism split below has numbers under it.**
+> `experiments/intake-survey.lisp` classified 87 sentences by which layer refused
+> them. In-register: 61/62, with zero grammar gaps. Across both bands: 5 grammar
+> gaps against 14 lexicon-or-ontology gaps. The domain is bounded by the 61-word
+> intersection of PARSIFAL's dictionary with the ontology, not by the grammar.
+> See `notes/intake-survey-findings.md`. The argument below is unchanged; it is
+> the corpus that has stopped being hypothetical.
 
 The question, asked after a run of one-off parser fixes (`her`, noun compounds,
 bare temporals, apposition): *are we fixing these because of PARSIFAL's design,
