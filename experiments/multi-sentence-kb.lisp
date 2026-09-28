@@ -112,21 +112,38 @@
         while pos))
 
 ;;; --- Phase 2: accumulation -------------------------------------------------
-;;; Two stores, the same graphs. INCLUDE-CGRAPH combines on the way in (that is
-;;; what it is for); the flat store just holds them. The difference between the
-;;; two IS the finding.
+;;; Two stores, the same graphs, built through the TWO REAL INGEST FUNCTIONS --
+;;; which are a matched pair, and choosing between them is the policy question
+;;; this phase exists to inform:
+;;;
+;;;   cg::add-cgraph      append; nothing joined; the context holds what was
+;;;                       asserted, one graph per sentence
+;;;   cg::include-cgraph  append AND combine with every graph sharing a joinable
+;;;                       concept, transitively
+;;;
+;;; The flat store used to be built with a raw `(push graph (graphs kb))', which
+;;; is not what any caller does -- ADD-CGRAPH is, and MAKE-CGRAPH calls it. The
+;;; push skipped ADD-CGRAPH's duplicate guard, so the two stores were not
+;;; actually the two ingest paths being compared. (The guard was worth exercising:
+;;; it was silently dropping distinct facts until 2026-09-28 -- it compared a bag
+;;; of node keys, which ignore arcs, so `Sue gives Bob a book' and `Bob gives Sue
+;;; a book' counted as the same graph. cgraph/notes/known-issues.md.)
+;;;
+;;; The difference between the two stores IS the finding.
 
 (defun kb-store (entries &key join)
-  "A context holding ENTRIES' graphs. With :JOIN t they go through
-   INCLUDE-CGRAPH, which combines a graph with any it shares concepts with; else
-   each is added as-is."
+  "A context holding ENTRIES' graphs. With :JOIN t they go in through
+   INCLUDE-CGRAPH, which combines a graph with any it shares concepts with;
+   otherwise through ADD-CGRAPH, which appends and joins nothing.
+
+   Both are the real functions, so this measures the real ingest paths --
+   including ADD-CGRAPH's duplicate guard, which is part of what that path IS."
   (let ((kb (cg::make-context)))
     (dolist (entry entries)
       (let ((graph (third entry)))
         (if join
             (cg::include-cgraph graph kb)
-            (push graph (cg::graphs kb)))))
-    (setf (cg::graphs kb) (reverse (cg::graphs kb)))
+            (cg::add-cgraph graph kb))))
     kb))
 
 (defun arc-label-tally (graph &key events-only)
