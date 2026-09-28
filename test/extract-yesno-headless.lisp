@@ -33,7 +33,15 @@
          (d (proposition-text "the dog sees the man ."))
          (pass (and q (search "SEE" q) (search "DOG" q) (search "MAN" q)
                     (search "AGNT" q) (search "OBJ" q)
-                    (equal q d))))   ; yes-no question == declarative proposition
+                    ;; Same content, compared modulo individual markers: each
+                    ;; extraction individuates its event off a global counter, so
+                    ;; the markers differ by construction and the STRUCTURE is
+                    ;; what the claim is about. (An extracted question is
+                    ;; individuated like any other clause. If you want one as a
+                    ;; QUERY PATTERN, extract it with *individuate-events* NIL --
+                    ;; a pattern carrying [SEE: #3] matches only that event.)
+                    (equal (without-individual-ids q)
+                           (without-individual-ids d)))))
     (when verbose
       (format t "~&question:    ~a~%" q)
       (format t "~&declarative: ~a~%" d))

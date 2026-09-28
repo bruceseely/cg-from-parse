@@ -51,7 +51,8 @@
     ("exchange"     . extract-exchange-headless-test)
     ("driver"       . extract-driver-headless-test)
     ("diagnose"     . extract-diagnose-headless-test)
-    ("progressive"  . extract-progressive-headless-test))
+    ("progressive"  . extract-progressive-headless-test)
+    ("identity"     . extract-identity-headless-suite))
   "(label . test-function) for each extract-<label>-headless.lisp script.")
 
 (defun run-headless-tests (&key restore)

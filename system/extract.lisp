@@ -1433,7 +1433,8 @@ nodes), so the two transfers still COREFER on the same buyer/seller concepts."
          ;; the head is a COMMERCIAL-EXCHANGE (an exchange specialized so one
          ;; transfer is a PAY); the general `exchange' is its supertype
          (exchange   (progn (note-type-label 'cg::event)
-                            (concept-for-node nil 'pa::commercial-exchange 'cg::event))))
+                            (individuate-event
+                             (concept-for-node nil 'pa::commercial-exchange 'cg::event)))))
     (flet ((link-part (part-concept)
              (let ((rel (make-relation* 'cg::part)))
                (cg::add-arc-into-relation exchange rel)
@@ -1514,7 +1515,8 @@ emit-possession) -- neither has a predicate concept."
   (when (possession-clause-p ir)
     (return-from emit-clause (emit-possession ir)))
   (note-type-label *predicate-root*)
-  (let ((pred-concept (concept-for-node (getf ir :node) (getf ir :pred) *predicate-root*)))
+  (let ((pred-concept (individuate-event
+                       (concept-for-node (getf ir :node) (getf ir :pred) *predicate-root*))))
     ;; Carry tense/aspect onto the predicate concept (not shown by the linear
     ;; formatter, but stored for the realizer / queries).
     (let ((tense (getf ir :tense)) (aspect (getf ir :aspect)) (voice (getf ir :voice)))
@@ -1607,7 +1609,11 @@ concept if present (coreference)."
   (or (and node (gethash node *node->concept*))
       (let* ((ctype   (or (ignore-errors (cg::get-concept-type type-hint))
                           cg::*concept-type-top*))
-             (indiv   (cg::make-individual ctype (list :name name)))
+             ;; THE individual of this type with this name -- the same object in
+             ;; every sentence, so Sue is one person across the corpus. A fresh
+             ;; REFERENT per concept, though: the referent is the concept's own
+             ;; wrapper and may carry per-occurrence properties.
+             (indiv   (registered-individual ctype name))
              (concept (cg::make-concept ctype (cg::make-referent indiv))))
         (when node (setf (gethash node *node->concept*) concept))
         concept)))
@@ -1634,8 +1640,8 @@ concepts, e.g. an unbound trace)."
                   (when appos
                     (setf (cg::referent concept)
                           (cg::make-referent
-                           (cg::make-individual (cg::concept-type concept)
-                                                (list :name appos))))))
+                           (registered-individual (cg::concept-type concept)
+                                                  appos)))))
                 ;; Quantifier (all/some...): stored on the concept, like
                 ;; tense/voice -- not shown in linear form, used by the realizer.
                 (let ((q (getf filler :quantifier)))

@@ -30,13 +30,17 @@
        (let* ((graph (ir->cgraph (parse->ir pa::c)))
               (text  (ignore-errors (cg::format-cgraph graph)))
               (up    (and (stringp text) (string-upcase text)))
+              ;; Space-stripped, so the assertions do not depend on *concise*.
+              (flat  (and up (remove #\Space up)))
               ;; the man + the woman -> two definite "#" referents; a book -> bare.
-              ;; (Count "#" rather than match spacing, which depends on *concise*.)
-              (pass  (and up
-                          (search "MAN"   up) (search "WOMAN" up)
-                          (eql 2 (count #\# up))         ; exactly the two definites
-                          (search "[BOOK]" up)           ; a book -> bare ...
-                          (not (search "[BOOK:" up)))))  ; ... no referent
+              ;; Named per-NP rather than counted: the PREDICATE now carries an
+              ;; individual marker of its own (event individuation), so a global
+              ;; count of "#" no longer says anything about the noun phrases.
+              (pass  (and flat
+                          (search "[MAN:#]"   flat)
+                          (search "[WOMAN:#]" flat)
+                          (search "[BOOK]"    flat)      ; a book -> bare ...
+                          (not (search "[BOOK:" flat))))) ; ... no referent
          (when verbose (format t "~&sentence: ~a~%graph:~%~a~%" sentence text))
          (format t "~&extract-determiner-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
          pass)))))

@@ -128,6 +128,14 @@ became ONE graph — one Sue node with her eating, driving, giving, paying and d
 hanging off it — and everything else the second. **That is a knowledge base**,
 and it is what `include-cgraph` was always trying to build.
 
+> **UPDATE 2026-09-28 — sections 2, 3 and 6 are now history.** The fix predicted
+> in §6 was built, in the emitter rather than as a post-pass
+> (`system/identity.lisp`), and it reaches these numbers on the way in: "Sue" 1
+> id, `same-individual-p` T, 24 graphs -> 2, zero events wrongly merged. §3's 13
+> Sues and §2's `[EAT]` with eight agents describe the system as it was. The
+> two named next steps below are done; the third — what `include-cgraph` is for
+> — is still open. See `notes/next-steps.md`.
+
 ## What this says about the original question
 
 The reasoning machinery is sound and does what the theory says. What it needs

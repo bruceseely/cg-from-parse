@@ -1,6 +1,69 @@
 # cg-from-parse — next steps
 
-## NEXT ACTION (set 2026-09-23): identity across sentences
+## IDENTITY ACROSS SENTENCES — DONE 2026-09-28
+
+**Built: event referents + a session-scoped name registry, in the emitter**
+(`system/identity.lisp`). Measured, against the numbers predicted below:
+
+| | before | after |
+|---|---|---|
+| "Sue", 26-sentence KB corpus | 13–14 ids | **1** |
+| "Sue", 87-sentence survey corpus | 28 ids | **1** |
+| `same-individual-p` on two mentions | NIL | **T** |
+| graphs after `include-cgraph` | 1 | **2** (the right 2) |
+| events the join merged wrongly | 6 kinds | **0** |
+
+Intake is unchanged (61/62 band A), generation is unchanged (`say` still reads
+an individuated event as "eats", not "the eating #12"), and all four suites pass
+with a new `identity` headless suite — 33/33.
+
+**What shipped**
+- `*individuate-events*` (default T): every emitted event concept gets its own
+  individual referent. The marker must be a NUMBER: `make-individual :id t`
+  gives the bare `#` that `build-referent` puts on a definite entity, and two of
+  those are `individuals-equal`, so `[EAT: #]` would have individuated nothing.
+- `individuate-event`, called from `emit-clause` (which covers the exchange
+  frame's two sub-transfers) and on the `[COMMERCIAL-EXCHANGE]` concept itself.
+  Idempotent, so a concept reused under coreference is individuated once.
+- The registry: `registered-individual` / `reset-name-registry` /
+  `with-fresh-identity` / `name-registry-report`, keyed by (type-label, name).
+- A **stale-type guard**: the registry outlives an extraction by design, so it
+  can outlive a catalog reload too. `reset-cgraph` builds fresh concept-type
+  objects (verified), and the key survives because it is the label — so without
+  the guard the registry would hand back an individual pointing at a dead type.
+  It remints when the cached individual's type is no longer the live object.
+
+**Why a registry and not cgraph's context cache.** `cache-concept` /
+`retrieve-concept` exist and would have worked, but they are unreachable from
+here for a structural reason: `extract-graph` binds a fresh CHILD context per
+extraction so embedded contexts nest correctly, and `*node->concept*` is rebound
+per extraction and keyed by parse node. Both are right as they stand and both
+are intra-sentence by construction. Making the context outlive an extraction
+would change coreference semantics to fix a naming problem.
+
+**Test churn was small** — 3 of 32 suites, all of them assertions that compared
+two extractions for identical text, which individuation breaks by design (two
+extractions draw two markers). `test-setup.lisp` gained `without-individual-ids`
+and they compare through it. `determiner` additionally stopped counting `#`
+characters globally, since the predicate now carries one.
+
+**Found on the way, NOT fixed, and the next decision:**
+- **A question is individuated like any other clause.** That is wrong if you
+  want to use an extracted question as a QUERY PATTERN — a pattern carrying
+  `[SEE: #3]` matches only that event. Today the workaround is real and
+  documented: extract with `*individuate-events*` bound to NIL. The proper fix
+  is a mood marker in the IR, which this deliberately did not add.
+- **Definite common nouns still over-merge.** `build-referent` gives them
+  `:id t`, so `[GIRL: #]` in two sentences are `individuals-equal`. The entity
+  side has the same failure the event side just had, one level down. Whether
+  "the girl" in sentence 5 is the girl from sentence 1 is a discourse question,
+  not a bug to fix silently.
+- **`include-cgraph` joining on ingest is still a policy, not a law**, and now
+  that it no longer invents events, deciding it is cheap.
+
+---
+
+## Original spec (set 2026-09-23), kept as written
 
 **Build event referents + a session-scoped name registry, in the emitter.**
 

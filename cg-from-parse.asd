@@ -26,7 +26,9 @@
            #:sentence->say #:say-graph
            #:ensure-grammar #:ensure-cgraph
            #:validate-ontology #:browse-types #:browse-lexicon
-           #:diagnose-parse #:parse-failure-report #:lexical-scan))
+           #:diagnose-parse #:parse-failure-report #:lexical-scan
+           #:reset-name-registry #:with-fresh-identity
+           #:name-registry-report #:*individuate-events*))
 
 (in-package :asdf-user)
 
@@ -42,7 +44,8 @@
   :perform (test-op (o c) (uiop:symbol-call :cg-from-parse '#:test-all t))
   :components ((:module "system"
                 :serial t
-                :components ((:file "extract")
+                :components ((:file "identity")
+                             (:file "extract")
                              (:file "render")
                              (:file "driver")))
                (:module "test"

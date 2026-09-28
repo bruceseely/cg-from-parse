@@ -151,3 +151,8 @@ cgraph's `known-issues.md`), so two Sues with different ids are correctly not
 equal.
 
 **This, not the parser, is where the next real work is.**
+
+> **UPDATE 2026-09-28 — done.** Event referents and a session-scoped name
+> registry landed in `system/identity.lisp`. The same corpus now reports **"Sue":
+> 29 mentions, 1 distinct individual id**, with intake unchanged at 61/62 for
+> band A. See `notes/next-steps.md`.

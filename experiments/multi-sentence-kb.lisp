@@ -26,6 +26,14 @@
 ;;;     --load experiments/multi-sentence-kb.lisp
 ;;;
 ;;; From a live session: (cg-from-parse::run-kb-experiment)
+;;;
+;;; 2026-09-28: THE FIX IN SECTION 6 HAS LANDED, in the emitter rather than as a
+;;; post-pass -- system/identity.lisp. Re-running this file now measures the real
+;;; thing, and it reaches section 6's predicted numbers on the way in: "Sue" 1 id,
+;;; same-individual-p T, 24 graphs -> 2, zero events wrongly merged. Section 6
+;;; itself is kept because a prediction that was made BEFORE the build and then
+;;; met is worth more than one written afterwards; it now individuates graphs
+;;; that are already individuated, which is a no-op, not a second measurement.
 
 (in-package :cg-from-parse)
 

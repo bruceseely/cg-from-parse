@@ -86,7 +86,8 @@
          (pass
           (and flat pay-pos
                ;; promoted to a COMMERCIAL-EXCHANGE of two (part) transfers
-               (search "[COMMERCIAL-EXCHANGE]" flat)
+               ;; the frame concept is an event, so it carries its own marker
+               (search "[COMMERCIAL-EXCHANGE:#" flat)
                (search "(PART)→[GIVE" flat)
                (search "(PART)→[PAY" flat)
                ;; GIVE (goods) transfer: you give me the hamburger today
@@ -110,12 +111,14 @@
                (equal text printed)
                ;; reconciliation: explicit-transfer version renders identically
                ;; to the inferred one, and has exactly ONE give (no duplicate)
-               (equal rel-text text)
+               (equal (without-individual-ids rel-text)
+                      (without-individual-ids text))
                (eql rel-gives 1)
                ;; perspective payoff: buy and sell yield the SAME exchange as pay
                (stringp pay-x)
-               (equal buy-x pay-x)
-               (equal sell-x pay-x))))
+               ;; modulo markers: three separate extractions, three counters
+               (equal (without-individual-ids buy-x)  (without-individual-ids pay-x))
+               (equal (without-individual-ids sell-x) (without-individual-ids pay-x)))))
     (when verbose (format t "~&~a~%" text))
     (format t "~&extract-exchange-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
     pass))
