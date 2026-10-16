@@ -19,6 +19,9 @@ on:
 jobs:
   whole-stack:
     runs-on: ubuntu-latest
+    # The gate takes about two minutes. A hang used to run to GitHub's six-hour
+    # default; this fails it in minutes instead.
+    timeout-minutes: 15
     env:
       # Make every checked-out repo ASDF-discoverable; ql:quickload falls back to
       # ASDF for systems not in the Quicklisp dist (parsifal, cgraph, cg-from-parse).
@@ -43,8 +46,18 @@ jobs:
           path: cgraph
           token: ${{ secrets.STACK_CHECKOUT_TOKEN }}
 
+      # The official binary, pinned to the version development runs on. Ubuntu's
+      # apt package was SBCL 2.2.9, four years older, and the extractor suite
+      # failed under it while passing on 2.6.6.
       - name: Install SBCL
-        run: sudo apt-get update && sudo apt-get install -y sbcl
+        env:
+          SBCL_VERSION: 2.6.6
+        run: |
+          curl -sSL -o /tmp/sbcl.tar.bz2 \
+            "https://downloads.sourceforge.net/project/sbcl/sbcl/${SBCL_VERSION}/sbcl-${SBCL_VERSION}-x86-64-linux-binary.tar.bz2"
+          tar -xjf /tmp/sbcl.tar.bz2 -C /tmp
+          (cd /tmp/sbcl-${SBCL_VERSION}-x86-64-linux && sudo sh install.sh)
+          sbcl --version
 
       - name: Cache Quicklisp
         uses: actions/cache@v4
@@ -60,9 +73,9 @@ jobs:
                  --eval '(quicklisp-quickstart:install)'
           fi
           # Always (re)write ~/.sbclrc so it works on a Quicklisp cache hit too:
-          # load Quicklisp, and unlock the CL package -- parsifal and cgraph
-          # declare CL-package symbols (e.g. NTH as special, TYPE as a reader)
-          # that are package-locked by default. Mirrors the dev machine's ~/.sbclrc.
+          # load Quicklisp, and unlock the CL package. cgraph no longer needs the
+          # unlock (it shadows SET and TYPE); parsifal still declares CL symbols
+          # such as NTH special, though it also unlocks CL itself on load.
           printf '%s\n' \
             '(load (merge-pathnames "quicklisp/setup.lisp" (user-homedir-pathname)))' \
             '(sb-ext:unlock-package :common-lisp)' > ~/.sbclrc
