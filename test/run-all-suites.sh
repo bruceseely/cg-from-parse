@@ -9,7 +9,7 @@
 #
 #   parsifal             -- unit suite (pa::test-all)
 #   parsifal-integration -- gram1/gram3/gram4/... grammar tests (own runner)
-#   cgraph               -- engine suite (cg::test-all)
+#   cgraph               -- engine suite (asdf:test-system :cgraph)
 #   cg-from-parse        -- headless extractor integration suite
 #
 # Why separate processes rather than one image: the suites share global mutable
@@ -30,13 +30,6 @@ set -u
 SBCL="${SBCL:-sbcl}"
 export SBCL                        # child runners (parsifal integration) inherit
 COMMON=(--non-interactive --disable-debugger)
-
-# Isolated, writable types dir for cgraph's with-test-types symlink swap.
-# Trailing slash: cgraph builds "~aconcept-types.lisp" straight off it.
-CGTYPES_DIR="$(mktemp -d)/"
-export CGTYPES_DIR
-cleanup() { rm -rf "${CGTYPES_DIR%/}"; }
-trap cleanup EXIT
 
 # Locate parsifal (for its integration runner) via ASDF, wherever it lives.
 PARSIFAL_DIR="$("$SBCL" "${COMMON[@]}" \
@@ -82,20 +75,15 @@ else
   NAMES+=("parsifal-integration"); RESULTS+=(1)
 fi
 
-# 3. cgraph -- engine suite (cg::test-all) against an ISOLATED test-types
-#    catalog. test-all.lisp is not in cgraph's asd, so load it explicitly.
-#    NB: *package* MUST be :conceptual-graphs -- cgraph's tests READ graph
-#    strings and type labels in the current package, so from CL-USER those
-#    symbols intern as CL-USER::ACT etc. and every type lookup misses.
+# 3. cgraph -- engine suite: (asdf:test-system :cgraph), which loads the
+#    cgraph/tests system and runs every suite against cgraph's own test-types
+#    catalog, from any package. It signals an error when a suite fails, which
+#    --disable-debugger turns into a non-zero exit.
 run_suite "cgraph" \
   "$SBCL" "${COMMON[@]}" \
   --eval '(ql:quickload :cgraph :silent t)' \
-  --eval '(in-package :conceptual-graphs)' \
-  --eval '(setf *cgraph-types-directory* (uiop:getenv "CGTYPES_DIR"))' \
   --eval '(handler-bind ((warning (function muffle-warning)))
-            (load (merge-pathnames "test/test-all.lisp"
-                                   (asdf:system-source-directory :cgraph))))' \
-  --eval '(sb-ext:exit :code (if (test-all t) 0 1))'
+            (asdf:test-system :cgraph))'
 
 # 4. cg-from-parse -- headless integration suite (run-headless-tests, i.e. the
 #    real extractor coverage; cfp::test-all alone is just the case-role unit

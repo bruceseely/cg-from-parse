@@ -320,8 +320,8 @@ It covers, in isolation:
 - **parsifal** — unit suite (`pa::test-all`)
 - **parsifal-integration** — the grammar integration tests (parsifal's own
   per-file runner)
-- **cgraph** — engine suite (`cg::test-all`), pointed at a throwaway temp type
-  catalog so your `~/.cgraph` is never touched
+- **cgraph** — engine suite (`(asdf:test-system :cgraph)`), against cgraph's
+  own test types, so your `~/.cgraph` is never touched
 - **cg-from-parse** — the headless integration tests above
 
 Separate processes because the suites share global mutable state — the cgraph
