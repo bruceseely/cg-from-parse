@@ -182,7 +182,9 @@ gap. Uses the same MORPHO call the parser makes (driver.lisp LEXICAL-SCAN)."
       ;; the ontology has no type for a word the parser read fine
       ((has "no concept type for lemma") :ontology-type)
       ;; the lattice refused an arc: the type system working, not a defect
-      ((or (has "is not consistent with") (has "out-arc type of the")) :ontology-contract)
+      ((or (has "can't be the source of") (has "can't be the destination of")
+           (has "is not consistent with") (has "out-arc type of the"))
+       :ontology-contract)
       ((has "Unknown ontology profile") :ontology-type)
       (t :unclassified))))
 
