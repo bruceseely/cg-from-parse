@@ -4,7 +4,8 @@ name: whole-stack tests
 # parsifal (unit + integration), cgraph, and this extractor's headless suite,
 # each in its own SBCL process. Self-contained on three repos -- the gate runs
 # cgraph against its in-repo test-types catalog and never touches ~/.cgraph, so
-# cgraph-types is not needed here.
+# cgraph-types is not needed here. All three repos are public, so they are
+# checked out without a token, and a pull request from a fork runs it too.
 #
 # NB: this triggers on pushes to cg-from-parse only. To catch a break introduced
 # by a push to parsifal or cgraph, add a small triggering workflow to those repos
@@ -37,14 +38,12 @@ jobs:
         with:
           repository: bruceseely/parsifal
           path: parsifal
-          token: ${{ secrets.STACK_CHECKOUT_TOKEN }}
 
       - name: Checkout cgraph
         uses: actions/checkout@v4
         with:
           repository: bruceseely/cgraph
           path: cgraph
-          token: ${{ secrets.STACK_CHECKOUT_TOKEN }}
 
       # The official binary, pinned to the version development runs on. Ubuntu's
       # apt package was SBCL 2.2.9, four years older, and the extractor suite
