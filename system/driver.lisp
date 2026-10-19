@@ -24,14 +24,11 @@ and a *context* exists."
        cg::*context*))
 
 (defun ensure-cgraph ()
-  "Make sure cgraph is initialized -- type catalog loaded from the user's
-~/.cgraph/types and *context* bound. No-op if already initialized, so a running
-session isn't disturbed. (*package* must be :cg while loading: cgraph's type
-loaders use plain READ.)"
+  "Make sure cgraph is initialized -- type catalog loaded (CG:INIT's choice of
+set) and *context* bound. No-op if already initialized, so a running
+session isn't disturbed."
   (unless (cgraph-ready-p)
-    (let ((*package* (find-package :conceptual-graphs)))
-      (cg::setup-cgraph (asdf:system-source-directory :cgraph))
-      (cg::reset-cgraph)))
+    (cg:init))
   t)
 
 (defparameter *domain-lexicon-name* "lexicon.dict"

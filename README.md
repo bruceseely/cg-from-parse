@@ -100,7 +100,7 @@ grammar profiles. See `notes/scoping-and-ontology-contract.md`.
 A domain is **one directory**, and you point at it once:
 
 ```lisp
-(cg::setup-cgraph <cgraph-source-dir> :external-types-directory "/path/to/my-domain/")
+(cg:init :types "/path/to/my-domain/")
 ```
 
 ```
