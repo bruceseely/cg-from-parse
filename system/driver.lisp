@@ -17,10 +17,13 @@
   "T once PARSIFAL's full grammar has been loaded + registered this session.")
 
 (defun cgraph-ready-p ()
-  "True when cgraph is initialized: the type catalog is loaded (top type bound)
-and a *context* exists."
-  (and (boundp 'cg::*concept-type-top*)
-       cg::*concept-type-top*
+  "True when cgraph is initialized: the type catalog is loaded (there is a top
+type) and a *context* exists."
+  ;; Not BOUNDP: *CONCEPT-TYPE-TOP* is now a symbol macro for a slot of the
+  ;; current cgraph environment, and BOUNDP asks after the symbol's global
+  ;; value, which a symbol macro never sets. IGNORE-ERRORS covers older cgraphs,
+  ;; where it was a variable left unbound until the types loaded.
+  (and (ignore-errors cg::*concept-type-top*)
        cg::*context*))
 
 (defun ensure-cgraph ()
