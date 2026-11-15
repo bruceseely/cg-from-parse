@@ -1792,7 +1792,8 @@ which is why this re-registers on every extraction rather than once at load."
 (defun ir->cgraph (ir)
   "Emit a complete cgraph graph from clause IR, in a fresh child context."
   ;; Start each extraction with clean cgraph coreference + variable caches:
-  ;; both are process-global in cgraph (*coref-labels* / *variables*), so a label
+  ;; both are shared across parses in cgraph's current environment
+  ;; (*coref-labels* / *variables*), so a label
   ;; like X1 registered by a previous extraction would otherwise leak in and make
   ;; a new X1 resolve to the stale concept -- corrupting the *x/?x coref split.
   (cg::initialize-coreferences)
