@@ -95,19 +95,37 @@ purpose: the caller should not have to know which of those it is holding."
 ;;; ===========================================================================
 
 (defvar *name-registry* nil
-  "(TYPE-LABEL . NAME) -> individual, for as long as the knowledge base lives.
-NIL until first use; `name-registry' creates it. Deliberately NOT rebound by
-`extract-graph' -- outliving a single extraction is the entire point.")
+  "A private registry bound by `with-fresh-identity', or NIL, in which case
+each cgraph environment has its own (*NAME-REGISTRIES*). Deliberately NOT
+rebound by `extract-graph' -- outliving a single extraction is the entire
+point.")
+
+(defvar *name-registries* (make-hash-table :test 'eq)
+  "cgraph environment -> its registry: (TYPE-LABEL . NAME) -> individual, for
+as long as that knowledge base lives. Per environment because individuals are:
+one shared table would hand environment A's Sue to environment B, and the
+stale-type guard in `registered-individual' would then replace A's entry with
+B's, so alternating between the two would lose sameness in both.")
+
+(defun %current-name-registry ()
+  "The registry in force, or NIL when none has been made yet."
+  (or *name-registry*
+      (gethash cg:*environment* *name-registries*)))
 
 (defun name-registry ()
   "The live registry, created on first use."
-  (or *name-registry*
-      (setf *name-registry* (make-hash-table :test 'equal))))
+  (or (%current-name-registry)
+      (setf (gethash cg:*environment* *name-registries*)
+            (make-hash-table :test 'equal))))
 
 (defun reset-name-registry ()
   "Forget every name. The next mention of Sue starts a new person.
-Call between independent knowledge bases; NOT between sentences of one."
-  (setf *name-registry* nil))
+Call between independent knowledge bases; NOT between sentences of one.
+Inside `with-fresh-identity' it clears that private registry."
+  (if *name-registry*
+      (clrhash *name-registry*)
+      (remhash cg:*environment* *name-registries*))
+  nil)
 
 (defmacro with-fresh-identity (&body body)
   "Run BODY over a private registry, leaving the caller's untouched. For tests
@@ -147,7 +165,7 @@ across a catalog reload, which is correct -- that is a different knowledge base.
 (defun name-registry-report (&optional (stream *standard-output*))
   "What the registry is holding -- one line per named individual. A REPL
 convenience for asking who the knowledge base thinks exists."
-  (let ((table *name-registry*))
+  (let ((table (%current-name-registry)))
     (if (null table)
         (format stream "~&name registry: empty~%")
         (progn

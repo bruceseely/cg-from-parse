@@ -23,6 +23,7 @@
 ;;;      extract a QUERY PATTERN (a pattern carrying [EAT: #3] matches only
 ;;;      that event)
 ;;;   6. with-fresh-identity isolates a registry; reset-name-registry clears it
+;;;   7. each cgraph environment has a registry of its own
 ;;;
 ;;;   sbcl --non-interactive --disable-debugger \
 ;;;     --eval '(ql:quickload :swank)' --eval '(ql:quickload :cg-from-parse)' \
@@ -167,9 +168,35 @@
     (format t "~&extract-identity-scope-test: ~:[FAILED <<<~;passed~]~%" pass)
     pass))
 
+;;; 7. Each cgraph environment has its own registry. Individuals belong to an
+;;;    environment, so one shared table would hand one knowledge base's Sue to
+;;;    another -- and, alternating between them, lose sameness in both.
+(defun extract-identity-environment-test (&optional verbose)
+  (let* ((dir (asdf:system-relative-pathname :cgraph "test/test-types/"))
+         (e1  (cg:make-environment :types dir))
+         (e2  (cg:make-environment :types dir)))
+    (flet ((sue (env)
+             (cg:with-environment (env)
+               (let ((g (%identity-graph "sue eats a pie .")))
+                 (and g (%named-individual g "Sue"))))))
+      (unwind-protect
+           (let* ((a1 (sue e1)) (b1 (sue e2)) (a2 (sue e1)) (b2 (sue e2))
+                  (found     (and a1 b1 a2 b2 t))
+                  (kept      (and found (eq a1 a2) (eq b1 b2)))
+                  (separate  (and found (not (eq a1 b1))))
+                  (pass      (and kept separate)))
+             (when verbose
+               (format t "~&extracted in both: ~a   one Sue per environment: ~a   ~
+                          two environments, two Sues: ~a~%" found kept separate))
+             (format t "~&extract-identity-environment-test: ~:[FAILED <<<~;passed~]~%" pass)
+             pass)
+        (remhash e1 *name-registries*)
+        (remhash e2 *name-registries*)))))
+
 (defun extract-identity-headless-suite (&optional (verbose t))
   (let ((a (extract-identity-headless-test verbose))
-        (b (extract-identity-scope-test verbose)))
-    (and a b)))
+        (b (extract-identity-scope-test verbose))
+        (c (extract-identity-environment-test verbose)))
+    (and a b c)))
 
 (extract-identity-headless-suite)
