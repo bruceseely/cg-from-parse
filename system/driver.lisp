@@ -52,11 +52,11 @@ when one was passed. A user therefore drops lexicon.dict beside the type files
 and it is picked up -- one directory, one setting, which is the whole point.
 (cgraph resolves the same directory for itself, for the GENERATION side of the
 vocabulary: a domain's lexicon-overrides.lisp, saying how its types are worded.)"
-  (or (let ((ext (and (boundp 'cg::*external-types-directory*)
-                      cg::*external-types-directory*)))
+  ;; Not BOUNDP: both are symbol macros for slots of cgraph's current
+  ;; environment, and BOUNDP asks after a global value they never have.
+  (or (let ((ext cg::*external-types-directory*))
         (and ext (uiop:ensure-directory-pathname ext)))
-      (let* ((dir (and (boundp 'cg::*cgraph-types-directory*)
-                       cg::*cgraph-types-directory*))
+      (let* ((dir cg::*cgraph-types-directory*)
              (link (and dir (ignore-errors
                              (truename (merge-pathnames
                                         "concept-types.lisp"

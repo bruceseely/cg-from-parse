@@ -7,9 +7,10 @@
 ;;; customizable and may not contain the types a test needs. But we must NOT
 ;;; leave the user's environment changed -- `setup-cgraph :external-types-
 ;;; directory X` re-symlinks ~/.cgraph/types -> X and never restores it. So
-;;; instead of symlinking, we dynamically bind *cgraph-types-directory* to
+;;; instead of symlinking, we temporarily set *cgraph-types-directory* to
 ;;; test-types and let reset-cgraph load straight from there: the catalog loads
-;;; into memory and the ~/.cgraph/types symlink is never touched.
+;;; into memory and the ~/.cgraph/types symlink is never touched. ENV-LET, not
+;;; LET: the type-set directory is a slot of cgraph's environment.
 
 (in-package :cg-from-parse)
 
@@ -17,9 +18,9 @@
   "Bring up a cgraph context with the TEST-TYPES catalog, without repointing the
 user's ~/.cgraph/types symlink. *package* must be :cg while loading (cgraph's
 type loaders use plain READ)."
-  (let ((*package* (find-package :conceptual-graphs))
-        (cg::*external-types-directory* nil)
-        (cg::*cgraph-types-directory*
+  (cg:env-let ((*package* (find-package :conceptual-graphs))
+               (cg::*external-types-directory* nil)
+               (cg::*cgraph-types-directory*
           (format nil "~atest/test-types/" (asdf:system-source-directory :cgraph))))
     (cg::reset-cgraph)))
 

@@ -79,8 +79,8 @@ See file header. RESTORE reloads your catalog + a fresh context afterward."
         ;; session isn't left on test-types. (*package* must be :cg while loading
         ;; -- cgraph's type loaders use plain READ.) NB: this resets *context*,
         ;; clearing any in-memory graphs; it restores your TYPE catalog.
-        (let ((*package*                  (find-package :conceptual-graphs))
-              (cg::*cgraph-types-directory* saved-types-dir))
+        (cg:env-let ((*package*                  (find-package :conceptual-graphs))
+                     (cg::*cgraph-types-directory* saved-types-dir))
           (ignore-errors (cg::reset-cgraph)))))
     (setf results (nreverse results))
     (format t "~2&==== headless summary ====~%")
