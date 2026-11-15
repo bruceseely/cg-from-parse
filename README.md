@@ -65,6 +65,14 @@ per-construction rule-group selection. So it works right after
 `:on-missing` keyword binds `*on-missing-type*` (`:error` default / `:create` /
 `:top`) for out-of-ontology words.
 
+Sentences extracted in one session share their named individuals: "Sue" in the
+second sentence is the Sue of the first, one individual in the knowledge base.
+The names are remembered per cgraph environment, so a second knowledge base
+made with `cg:make-environment` starts knowing no one, and Sue in one isn't
+merged with Sue in the other. `(cg-from-parse:reset-name-registry)` forgets
+the current environment's names. `cg-from-parse:with-fresh-identity` gives its body a
+private set of names, one that nothing else sees.
+
 When a sentence won't parse, `diagnose-parse` says why. PARSIFAL is wait-and-see
 with no backtracking, so a dead end used to surface as a bare "could not parse":
 
