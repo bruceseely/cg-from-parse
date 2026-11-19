@@ -424,6 +424,8 @@ Routes through cg-text, so a promoted [EXCHANGE] graph gets the block renderer
 (render.lisp) and everything else the engine's format-cgraph."
   (cg-text (parse-and-extract sentence :on-missing on-missing)))
 
+(defmethod cg ((sentence string)) (cg-text (parse-and-extract sentence :on-missing :create)))
+
 (defun say-graph (graph)
   "Realize GRAPH back to English via cgraph's realizer (say), with cross-context
 coreference generation enabled. cgraph's *anaphora-cross-coref* defaults to NIL, so
@@ -434,6 +436,7 @@ faithful to the coreference the extractor encoded (\"...the dog sees him\", not
 \"...sees a man\") -- without changing cgraph's global default for other callers."
   (let ((cg::*anaphora-cross-coref* t))
     (cg::say graph)))
+
 
 (defun sentence->say (sentence &key (on-missing *on-missing-type*))
   "Round-trip: parse SENTENCE, extract its conceptual graph, and realize that graph
