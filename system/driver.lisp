@@ -41,6 +41,10 @@ concept-types.lisp and relation-types.lisp.")
 (defvar *domain-lexicon-loaded* nil
   "The domain lexicon file loaded this session, or NIL.")
 
+(defvar *domain-lexicon-write-date* nil
+  "FILE-WRITE-DATE of *DOMAIN-LEXICON-LOADED* when it was read. A later date
+means the file was edited since, and ENSURE-DOMAIN-LEXICON reads it again.")
+
 (defun domain-directory ()
   "The directory holding the MOUNTED domain's data -- concept types, relation
 types, and (optionally) the parser vocabulary that goes with them.
@@ -78,17 +82,40 @@ Load order is satisfied by construction: cg-from-parse depends on parsifal, so
 Marcus's dictionary and supplement.dict are already in place, and the domain's
 `jlike' targets resolve.
 
+EDITED, IT IS READ AGAIN: once loaded, the file is re-read whenever its write
+date moves on, so a word added to lexicon.dict works at the next parse. This
+used to be once per session, and a DEFVAR, so even reloading cg-from-parse kept
+the old vocabulary, and a word added to the file went on failing to parse
+until a fresh image. Re-reading redefines every word in the file, which is what an edit
+wants; a word DELETED from the file stays defined until a fresh image, for the
+reason below.
+
 NO UNLOAD, by decision: word definitions accumulate on symbol plists, so
 switching domains means a fresh image. The type half CAN be swapped live
 (`unload-cgraph-types'), so the two halves of a mount are not symmetric -- see
-the mount notes in README."
-  (when (or force (not *domain-lexicon-loaded*))
-    (let* ((dir  (domain-directory))
-           (file (and dir (probe-file (merge-pathnames *domain-lexicon-name* dir)))))
-      (when file
+the mount notes in README. So only the file already loaded is re-read; another
+domain's file is not loaded on top of it."
+  (let* ((dir  (and (or force
+                        (not *domain-lexicon-loaded*)
+                        (lexicon-file-changed-p *domain-lexicon-loaded*))
+                    (domain-directory)))
+         (file (and dir (probe-file (merge-pathnames *domain-lexicon-name* dir)))))
+    (when (and file
+               (or force
+                   (not *domain-lexicon-loaded*)
+                   (equal (namestring file) (namestring *domain-lexicon-loaded*))))
+      (let ((date (file-write-date file)))
         (pa:load-user-lexicon file)
-        (setf *domain-lexicon-loaded* file))))
+        (setf *domain-lexicon-loaded* file
+              *domain-lexicon-write-date* date))))
   *domain-lexicon-loaded*)
+
+(defun lexicon-file-changed-p (file)
+  "True when FILE has been written since it was loaded. A file that has gone
+missing has not changed: there is nothing newer to read."
+  (let ((date (ignore-errors (file-write-date file))))
+    (and date *domain-lexicon-write-date*
+         (> date *domain-lexicon-write-date*))))
 
 (defun ensure-grammar (&optional force)
   "Load and register PARSIFAL's full grammar so parse-sentence can handle any

@@ -53,7 +53,8 @@
     ("diagnose"     . extract-diagnose-headless-test)
     ("progressive"  . extract-progressive-headless-test)
     ("identity"     . extract-identity-headless-suite)
-    ("alias"        . extract-alias-headless-test))
+    ("alias"        . extract-alias-headless-test)
+    ("lexicon-reload" . extract-lexicon-reload-headless-test))
   "(label . test-function) for each extract-<label>-headless.lisp script.")
 
 (defun run-headless-tests (&key restore)
