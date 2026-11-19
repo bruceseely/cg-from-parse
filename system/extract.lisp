@@ -1246,7 +1246,10 @@ referent (see build-referent)."
                                (cg::get-concept-type (intern (string-upcase root) :cg)))))))
     (flet ((mk (ct) (concept-of ct :definite definite :plural plural :count count)))
       (cond
-        (ctype (mk ctype))
+        ;; A word that is an alias of its type -- "car" for AUTOMOBILE -- keeps
+        ;; its spelling on the concept, so the graph says [CAR] as the sentence
+        ;; did. Nothing else changes: the type is still AUTOMOBILE.
+        (ctype (cg::note-concept-type-spelling (mk ctype) name))
         ((eq *on-missing-type* :create)
          ;; NB: make-concept-type must get a SYMBOL here -- the STRING method
          ;; (types.lisp) forces the supertype to WORD and ignores supertypes-list;
