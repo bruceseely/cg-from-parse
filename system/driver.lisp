@@ -363,7 +363,7 @@ labelled as the assumption it is rather than an answer."
               (plusp (length (string surface)))
               (upper-case-p (char (string surface) 0)))
          (values (format nil "(df ~a feats (noun ns n3p propnoun place) markers (place))" w)
-                 "capitalized mid-sentence -> a PROPER NOUN. This template is a PLACE (cf. Marcus's `chicago'); for a person use feats (noun ns n3p propnoun name) markers (hanim), cf. his `mitch'"))
+                 "capitalized mid-sentence -> a PROPER NOUN. This template is a PLACE (cf. Marcus's `chicago'); add the kind of place to feats -- city, state -- if your ontology has it. For a person use feats (noun ns n3p propnoun name) markers (hanim), cf. his `mitch'"))
         ((feat-p "AUXVERB" "MODAL" "FUTURE")
          (values (format nil "(df ~a feats (mainverb pres tnsless v-3s) cf (neut agt) markers act)" w)
                  "follows an auxiliary -> a VERB. EDIT THE `cf': it is the case frame, and (neut agt) is only a transitive guess -- cf. Marcus's `go' for motion, (nil (pfrom) (pto) agt)"))

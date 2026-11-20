@@ -17,12 +17,12 @@
 ;;;     setting muffles. Loose to/from now fall back to dest/src, and what is
 ;;;     still dropped is reported with a DROPPED-PHRASE-WARNING.
 ;;;  3. A place name ("Boston", Marcus's `chicago' class) became a TYPE,
-;;;     [BOSTON]. It is now a named individual, [PLACE: Boston] -- or, when the
-;;;     ontology has a type spelled like it (BALTIMORE < CITY), typed by what the
-;;;     ontology says it is: [CITY: Baltimore].
+;;;     [BOSTON]. It is now a named individual, [PLACE: Boston] -- or, when its
+;;;     lexicon entry names a kind of place among its features (`city'),
+;;;     [CITY: Baltimore]. A person's name is refined the same way (`woman').
 ;;;
-;;; Runs in a fresh environment on cgraph's test types plus BALTIMORE, so the
-;;; shared test catalog is untouched.
+;;; Runs in a fresh environment on cgraph's test types, so the shared test
+;;; catalog is untouched.
 ;;;
 ;;; Invocation:
 ;;;   sbcl --noinform --non-interactive \
@@ -41,7 +41,14 @@
 (let ((*package* (find-package :parsifal)))
   (dolist (form '("(df drive feats (mainverb pres tnsless v-3s) cf (neut (pfrom) (pto) agt) markers act)"
                   "(df haul feats (mainverb pres tnsless v-3s) cf (neut (pto) agt) markers act)"
-                  "(df baltimore feats (noun ns n3p propnoun place) markers (place))"
+                  "(df baltimore feats (noun ns n3p propnoun place city) markers (place))"
+                  ;; a person's name that says which kind of person
+                  "(df zelda feats (noun ns n3p propnoun name woman) markers (hanim))"
+                  ;; the kind of place INSTEAD of the `place' feature: the
+                  ;; marker still says it is a place
+                  "(df gotham feats (noun ns n3p propnoun city) markers (place))"
+                  ;; a place name with a feature naming no kind of PLACE
+                  "(df oz feats (noun ns n3p propnoun place girl) markers (place))"
                   "(jlike car block)"))
     (eval (read-from-string form))))
 
@@ -63,7 +70,6 @@
       (cg:with-environment ((cg::make-environment
                              :types (namestring (asdf:system-relative-pathname
                                                  :cgraph "test/test-types/"))))
-        (cg::define-concept-type :label 'cg::baltimore :supertypes '(cg::city))
 
         ;; Licensed origin and destination; place names as individuals.
         (multiple-value-bind (text said) (extract "dave drives a car from Baltimore to Boston .")
@@ -72,8 +78,22 @@
           (check "to Boston is (dest)->[PLACE: Boston]"
                  (and text (search "(DEST)→[PLACE:BOSTON]" text)) text)
           (check "no type BOSTON was made" (null (ignore-errors (cg::get-concept-type 'cg::boston))))
+          (check "nor BALTIMORE: a city is an individual"
+                 (null (ignore-errors (cg::get-concept-type 'cg::baltimore))))
           (check "says it back, from before to"
                  (equal said "Dave drives a car from Baltimore to Boston.") said))
+
+        ;; The lexicon says what kind of thing a name names.
+        (multiple-value-bind (text said) (extract "zelda drives a car to Oz .")
+          (check "a `woman' feature makes a person's name [WOMAN: Zelda]"
+                 (and text (search "(AGNT)→[WOMAN:ZELDA]" text)) text)
+          (check "a feature naming no kind of place is ignored: [PLACE: Oz]"
+                 (and text (search "(DEST)→[PLACE:OZ]" text)) text)
+          (check "  says it back" (equal said "Zelda drives a car to Oz.") said))
+        (multiple-value-bind (text said) (extract "zelda drives a car to Gotham .")
+          (declare (ignore said))
+          (check "`city' in place of `place' still names a city: [CITY: Gotham]"
+                 (and text (search "(DEST)→[CITY:GOTHAM]" text)) text))
 
         ;; A frame with no origin: both PPs go loose, and both still land.
         (setf dropped '())

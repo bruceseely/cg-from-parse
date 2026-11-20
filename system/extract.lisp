@@ -350,7 +350,7 @@ resolution reads it (a possessive pronoun corefers with its clause's subject)."
      (list :kind :named
            :node filler
            :name (proper-name filler)
-           :type-hint (proper-name-type filler)
+           :type-hint (name-type-from-features filler (proper-name-type filler))
            :words (pa::node-words filler)))
     ;; A place name ("Boston"): a named individual too, [PLACE: Boston] -- see
     ;; PLACE-NAME-WORD for why it is not caught by the `name' test above.
@@ -359,7 +359,7 @@ resolution reads it (a possessive pronoun corefers with its clause's subject)."
        (list :kind :named
              :node filler
              :name (string-capitalize (string word))
-             :type-hint (place-name-type word)
+             :type-hint (name-type-from-features filler 'cg::place)
              :words (pa::node-words filler))))
     ;; A bound gap: a trace (control/raising), a relative pronoun (who/that/which
     ;; in a relative), OR a fronted wh-interrogative leaving a trace (object-wh
@@ -1020,26 +1020,58 @@ names as `chicago' is, (noun ns n3p propnoun place), not with the `name'
 feature his person names carry -- so they took the common-noun path, and a
 place became a TYPE of its own: \"drives to Boston\" gave (dest)->[BOSTON], and
 under :on-missing :create minted that type. A pseudopropnoun (here/there,
-which PARSIFAL also lexicalizes as place nouns) is a deictic, not a name."
+which PARSIFAL also lexicalizes as place nouns) is a deictic, not a name.
+
+A place is recognized by the `place' FEATURE or the `place' MARKER: the
+marker is what the case frames read, so an entry that trades the feature for
+the kind of place it is -- (noun ns n3p propnoun city) markers (place) -- is
+still a place name, and a city (see NAME-TYPE-FROM-FEATURES)."
   (let* ((nbar (and (member 'pa::prop-np (ignore-errors (pa::fe node)))
                     (ignore-errors (pa::daughter 'pa::nbar node))))
          (noun (and nbar (ignore-errors (pa::daughter 'pa::noun nbar))))
          (fe   (and noun (ignore-errors (pa::fe noun)))))
     (and (member 'pa::propnoun fe)
-         (member 'pa::place fe)
+         (or (member 'pa::place fe)
+             (member 'pa::place (ignore-errors (pa::smarkers node))))
          (not (member 'pa::pseudopropnoun fe))
          (ignore-errors (pa::getr 'pa::word noun)))))
 
-(defun place-name-type (word)
-  "The concept type for place name WORD: PLACE, unless the ontology already has
-a type spelled like the name -- cgraph-types has (:label baltimore :supertypes
-(city)) -- whose first supertype is then what the ontology says the place is:
-[CITY: Baltimore]. The name's own type is not used: it would make the city a
-kind of thing rather than a thing."
-  (let ((own (ignore-errors (cg::get-concept-type (intern (string-upcase (string word)) :cg)))))
-    (or (and own (let ((super (first (cg::direct-supertypes own))))
-                   (and super (cg::label super))))
-        'cg::place)))
+(defun name-noun-features (node)
+  "The lexicon features of name NP NODE's head word: the noun is NODE's own
+daughter for a person's name (Marcus's `name' NPs), under its nbar for a place
+name (a prop-np)."
+  (let ((noun (or (ignore-errors (pa::daughter 'pa::noun node))
+                  (ignore-errors (pa::daughter 'pa::noun (pa::daughter 'pa::nbar node))))))
+    (and noun (ignore-errors (pa::fe noun)))))
+
+(defun name-type-from-features (node default)
+  "The concept type for name NP NODE: DEFAULT (PLACE, PERSON, ...), refined by
+any of the word's lexicon features that names a kind of DEFAULT in the
+ontology. The lexicon says what a name names:
+
+  (df baltimore feats (noun ns n3p propnoun place city) markers (place))
+
+makes Baltimore [CITY: Baltimore], and a `woman' feature on a person's name
+gives [WOMAN: Sue]. A feature only counts when it is a proper subtype of
+DEFAULT, so the grammar's own features (noun, propnoun, place itself) never
+do, and neither does a word that happens to spell some unrelated type. Of two
+that count, the more specific wins; of two unrelated ones, the first.
+
+This replaces looking for a TYPE spelled like the name (BALTIMORE < CITY):
+that made a city a kind of thing rather than a thing."
+  (let ((base (ignore-errors (cg::get-concept-type default))))
+    (if (null base)
+        default
+        (let* ((kinds (loop for f in (name-noun-features node)
+                            for sym = (find-symbol (symbol-name f) :cg)
+                            for ct = (and sym (ignore-errors (cg::get-concept-type sym)))
+                            when (and ct (not (eq ct base)) (cg::supertype-p ct base))
+                              collect ct))
+               (best (find-if (lambda (k)
+                                (every (lambda (o) (or (eq o k) (not (cg::supertype-p o k))))
+                                       kinds))
+                              kinds)))
+          (if best (cg::label best) default)))))
 
 (defun np-quantifier (node)
   "Quantifier of an NP NODE -- :universal (all/every/each/any) / :existential
