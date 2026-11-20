@@ -1771,10 +1771,17 @@ across contexts."
     (when b
       (let ((ante (gethash b *node->concept*)))
         (cond
-          ;; Antecedent not emitted yet: behave like a normal entity (and
-          ;; register it, so a later mention of the same node shares it).
+          ;; Antecedent not emitted yet -- the passive's preposed subject is
+          ;; never a case filler itself, only its trace is: emit the antecedent
+          ;; NP here as the ordinary filler it is, so it keeps its determiner,
+          ;; number, count, name and modifiers ("the pie was eaten" is [PIE: #],
+          ;; "mitch was seen" [PERSON: Mitch]). Both paths register the node, so
+          ;; a later mention of it shares the concept.
           ((null ante)
-           (concept-for-node b (getf filler :lemma) required-type))
+           (let ((ir (filler->ir b nil)))
+             (if (member (getf ir :kind) '(:entity :named))
+                 (emit-filler ir required-type)
+                 (concept-for-node b (getf filler :lemma) required-type))))
           ;; Same context: identity coreference (one node, several arcs).
           ((eq (cg::context ante) cg::*context*)
            ante)

@@ -55,6 +55,7 @@
     ("identity"     . extract-identity-headless-suite)
     ("alias"        . extract-alias-headless-test)
     ("negation"     . extract-negation-headless-test)
+    ("passive-subject" . extract-passive-subject-headless-test)
     ("lexicon-reload" . extract-lexicon-reload-headless-test))
   "(label . test-function) for each extract-<label>-headless.lisp script.")
 
