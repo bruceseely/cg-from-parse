@@ -68,6 +68,30 @@
 ;;; Mapping tables / policy
 ;;; ===========================================================================
 
+(define-condition dropped-phrase-warning (warning)
+  ((message :initarg :message :reader dropped-phrase-message))
+  (:report (lambda (c stream) (write-string (dropped-phrase-message c) stream)))
+  (:documentation
+   "Signalled when the extractor leaves part of a parsed sentence out of the
+graph -- a PP with no relation, a filler whose type does not fit, a relation the
+catalog lacks. A dedicated WARNING subclass, not a SIMPLE-WARNING, so it
+survives a `(setf sb-ext:*muffled-warnings* 'simple-warning)' in an init file:
+a sentence that loses a phrase says so. (cf. parsifal's unknown-words-warning,
+for the same reason.)"))
+
+(defun warn-dropped (format-control &rest args)
+  "Signal a DROPPED-PHRASE-WARNING with the formatted message."
+  (warn 'dropped-phrase-warning :message (apply #'format nil format-control args)))
+
+(defun relation-known-p (label what)
+  "True when the loaded catalog has relation LABEL. Otherwise warn that WHAT
+was dropped and return NIL -- a mapped relation the ontology lacks (an older
+type set without `src', say) loses one phrase, not the whole extraction."
+  (or (and (ignore-errors (cg::get-relation-type label)) t)
+      (progn (warn-dropped "cg-from-parse: ~a dropped: the catalog has no (~(~a~)) relation"
+                           what label)
+             nil)))
+
 (defparameter *case-role->relation*
   (list (cons 'pa::agt    'cg::agnt)   ; agent     -> agnt  (ACT -> ANIMATE)
         (cons 'pa::neut   'cg::obj)    ; neutral   -> obj   (ACT -> ENTITY)
@@ -76,6 +100,7 @@
         (cons 'pa::time   'cg::time)   ; time      -> time  (SITUATION -> TIME-PERIOD)
         (cons 'pa::exch   'cg::exch)   ; exchange  -> exch  (ACT -> ENTITY)
         (cons 'pa::pto    'cg::dest)   ; direction -> dest  (EVENT -> PLACE)
+        (cons 'pa::pfrom  'cg::src)    ; origin    -> src   (EVENT -> PLACE)
         (cons 'pa::manner 'cg::manr))  ; manner    -> manr  (ACT -> MANNER)
   "PARSIFAL thematic case roles (in :parsifal) mapped to cgraph relation labels
 (in :conceptual-graphs). Each relation is emitted as [PRED]->(rel)->[filler], so
@@ -89,11 +114,11 @@ dropped in silence -- \"drive his automobile TO BALTIMORE\" came out with no
 trace of Baltimore, and nothing warned about it. `dest' fits exactly: EVENT ->
 PLACE, and a place noun is what fills the case.
 
-`pfrom', its mirror, is deliberately still absent: nothing in the catalog
-suits it. `from' is entity -> entity and means an ordering between concepts,
-not a motion origin, so it fails the act-source test above; `goal' is
-state -> situation. An origin relation would have to be added to
-cgraph-types first, which is an ontology decision, not a mapping one.
+`pfrom', its mirror, maps to `src' (EVENT -> PLACE), added to the type sets
+for it on 2026-11-20. The catalog's `from' is entity -> entity and means an
+ordering between concepts, not a motion origin, so it could not serve. A
+catalog without `src' drops the origin with a DROPPED-PHRASE-WARNING (see
+RELATION-KNOWN-P) instead of failing the extraction.
 
 agt/neut/dat are exercised by the test verbs; the
 prepositional dative (give's `to' PP) also fills DAT. loc/manr are wired and
@@ -148,7 +173,14 @@ otherwise the default *case-role->relation* applies."
         (cons "OVER"   'cg::loc)
         ;; instrument -> inst (event -> entity). "sees the dog WITH the telescope"
         ;; -- exactly see's canonical (inst)->[OBJECT].
-        (cons "WITH"   'cg::inst))
+        (cons "WITH"   'cg::inst)
+        ;; direction -> dest / origin -> src (event -> place), the relations the
+        ;; pto/pfrom CASES map to. Here for a verb that does not license them:
+        ;; one unlicensed PP sends PARSIFAL's frame-fitting to the clause for
+        ;; EVERY PP, so "drives a car from Baltimore to Boston" under a frame
+        ;; with only (pto) lost "to Boston" too. A `to' whose object is no
+        ;; place is still dropped, with a warning, by EMIT-ADJUNCT's dest check.
+        (cons "TO"     'cg::dest) (cons "FROM"    'cg::src))
   "Adjunct-preposition word -> cgraph relation. A PP adjunct is a PP the verb did
 NOT license as a case (\"the man sees the dog in the park\"); PARSIFAL attaches it
 to the clause, and we link its object off the predicate. Locative prepositions map
@@ -320,6 +352,15 @@ resolution reads it (a possessive pronoun corefers with its clause's subject)."
            :name (proper-name filler)
            :type-hint (proper-name-type filler)
            :words (pa::node-words filler)))
+    ;; A place name ("Boston"): a named individual too, [PLACE: Boston] -- see
+    ;; PLACE-NAME-WORD for why it is not caught by the `name' test above.
+    ((place-name-word filler)
+     (let ((word (place-name-word filler)))
+       (list :kind :named
+             :node filler
+             :name (string-capitalize (string word))
+             :type-hint (place-name-type word)
+             :words (pa::node-words filler))))
     ;; A bound gap: a trace (control/raising), a relative pronoun (who/that/which
     ;; in a relative), OR a fronted wh-interrogative leaving a trace (object-wh
     ;; questions). A wh gap is the QUERIED element -> a query concept; any other
@@ -973,6 +1014,33 @@ place, hanim -> person, anim -> animal, else *proper-noun-type*."
           ((member 'pa::anim  markers) 'cg::animal)
           (t *proper-noun-type*))))
 
+(defun place-name-word (node)
+  "The word of a place-name NP NODE (\"Boston\"), or NIL. Marcus enters place
+names as `chicago' is, (noun ns n3p propnoun place), not with the `name'
+feature his person names carry -- so they took the common-noun path, and a
+place became a TYPE of its own: \"drives to Boston\" gave (dest)->[BOSTON], and
+under :on-missing :create minted that type. A pseudopropnoun (here/there,
+which PARSIFAL also lexicalizes as place nouns) is a deictic, not a name."
+  (let* ((nbar (and (member 'pa::prop-np (ignore-errors (pa::fe node)))
+                    (ignore-errors (pa::daughter 'pa::nbar node))))
+         (noun (and nbar (ignore-errors (pa::daughter 'pa::noun nbar))))
+         (fe   (and noun (ignore-errors (pa::fe noun)))))
+    (and (member 'pa::propnoun fe)
+         (member 'pa::place fe)
+         (not (member 'pa::pseudopropnoun fe))
+         (ignore-errors (pa::getr 'pa::word noun)))))
+
+(defun place-name-type (word)
+  "The concept type for place name WORD: PLACE, unless the ontology already has
+a type spelled like the name -- cgraph-types has (:label baltimore :supertypes
+(city)) -- whose first supertype is then what the ontology says the place is:
+[CITY: Baltimore]. The name's own type is not used: it would make the city a
+kind of thing rather than a thing."
+  (let ((own (ignore-errors (cg::get-concept-type (intern (string-upcase (string word)) :cg)))))
+    (or (and own (let ((super (first (cg::direct-supertypes own))))
+                   (and super (cg::label super))))
+        'cg::place)))
+
 (defun np-quantifier (node)
   "Quantifier of an NP NODE -- :universal (all/every/each/any) / :existential
 (some) / NIL -- from its leading surface word. (Matched by name, since the word
@@ -1544,7 +1612,8 @@ emit-possession) -- neither has a predicate concept."
              (rel-label (if clausal
                             (complement-relation-for pred-concept filler)
                             (case-relation-for pred-concept role))))
-        (when rel-label
+        (when (and rel-label
+                   (relation-known-p rel-label (format nil "the ~(~a~) case" role)))
           (let* ((relation  (make-relation* rel-label))
                  (dest-type (cg::dest-type (cg::relation-type relation)))
                  (filler-concept (emit-filler filler dest-type)))
@@ -1556,7 +1625,7 @@ emit-possession) -- neither has a predicate concept."
                 ;; Shouldn't normally happen now (clausal fillers go via the
                 ;; proposition relation); keep a graceful skip just in case.
                 (clausal
-                 (warn "cg-from-parse: clausal complement [~a] not linked from [~a] via (~a)"
+                 (warn-dropped "cg-from-parse: clausal complement [~a] not linked from [~a] via (~a)"
                        (getf filler :pred) (getf ir :pred) rel-label))
                 ;; A real type mismatch on an entity/trace filler: let cgraph
                 ;; raise its detailed diagnostic.
@@ -1580,19 +1649,22 @@ was resolved from the preposition and the object type (adjunct-relation). Skips
 (with a warning) an unmapped preposition or an object whose type doesn't fit the
 relation's dest, so an adjunct never aborts the extraction."
   (let ((rel-label (getf adj :relation)))
-    (if (null rel-label)
-        (warn "cg-from-parse: PP adjunct (~a ...) dropped: no relation mapped for preposition"
-              (getf adj :prep))
-        (let* ((relation    (make-relation* rel-label))
-               (dest-type   (cg::dest-type (cg::relation-type relation)))
-               (obj-concept (emit-filler (getf adj :filler) dest-type)))
-          (when obj-concept
-            (if (arc-dest-ok-p obj-concept relation)
-                (progn (cg::add-arc-into-relation pred-concept relation)
-                       (cg::set-arc-from-relation relation obj-concept))
-                (warn "cg-from-parse: PP adjunct [~a] not linked via (~a): type ~a doesn't fit dest ~a"
-                      (getf adj :prep) rel-label
-                      (cg::label (cg::concept-type obj-concept)) (cg::label dest-type))))))))
+    (cond
+      ((null rel-label)
+       (warn-dropped "cg-from-parse: PP adjunct (~a ...) dropped: no relation mapped for preposition"
+                     (getf adj :prep)))
+      ((not (relation-known-p rel-label (format nil "PP adjunct (~a ...)" (getf adj :prep)))))
+      (t
+       (let* ((relation    (make-relation* rel-label))
+              (dest-type   (cg::dest-type (cg::relation-type relation)))
+              (obj-concept (emit-filler (getf adj :filler) dest-type)))
+         (when obj-concept
+           (if (arc-dest-ok-p obj-concept relation)
+               (progn (cg::add-arc-into-relation pred-concept relation)
+                      (cg::set-arc-from-relation relation obj-concept))
+               (warn-dropped "cg-from-parse: PP adjunct [~a] not linked via (~a): type ~a doesn't fit dest ~a"
+                             (getf adj :prep) rel-label
+                             (cg::label (cg::concept-type obj-concept)) (cg::label dest-type)))))))))
 
 (defun arc-dest-ok-p (concept relation)
   "Would CONCEPT satisfy RELATION's out-arc (dest) type? Mirrors the test in
@@ -1693,7 +1765,7 @@ modifier never aborts the extraction."
     (if (arc-dest-ok-p mod-concept relation)
         (progn (cg::add-arc-into-relation source-concept relation)
                (cg::set-arc-from-relation relation mod-concept))
-        (warn "cg-from-parse: modifier [~a] not linked via (~a): type ~a doesn't fit dest ~a"
+        (warn-dropped "cg-from-parse: modifier [~a] not linked via (~a): type ~a doesn't fit dest ~a"
               lemma rel-label
               (cg::label (cg::concept-type mod-concept)) (cg::label dest-type)))))
 
@@ -1710,7 +1782,7 @@ possessor never aborts the extraction."
       (if (arc-source-ok-p poss-concept relation)
           (progn (cg::add-arc-into-relation poss-concept relation)
                  (cg::set-arc-from-relation relation possessed-concept))
-          (warn "cg-from-parse: possessor [~a] not linked via (~a): type ~a doesn't fit source ~a"
+          (warn-dropped "cg-from-parse: possessor [~a] not linked via (~a): type ~a doesn't fit source ~a"
                 (or (getf poss-ir :lemma) (getf poss-ir :name)) *possessive-relation*
                 (cg::label (cg::concept-type poss-concept))
                 (and src-type (cg::label src-type)))))))
