@@ -42,6 +42,14 @@
            ;; report is still what this case exercises.
            (word-gap (with-output-to-string (s)
                        (diagnose-parse "the girl zorks the pie ." :stream s)))
+           ;; --- the unknown word is the FIRST word ---
+           ;; The template guesser looks at the word before the unknown one,
+           ;; and for the first word asked for element -1: the report itself
+           ;; crashed (NTH: -1 is not an UNSIGNED-BYTE) and hid the failure.
+           (first-gap (handler-case
+                          (with-output-to-string (s)
+                            (diagnose-parse "Zorg the girl the pie ." :stream s))
+                        (error (e) (format nil "REPORT CRASHED: ~a" e))))
            ;; --- a sentence that DOES parse: no report, and T ---
            (parsed nil)
            (good (with-output-to-string (s)
@@ -60,6 +68,10 @@
                       ;; a missing word is called out as such
                       (search "NOT IN THE LEXICON" word-gap)
                       (search "zorks" word-gap)
+                      ;; ... also when it is the first word
+                      (not (search "REPORT CRASHED" first-gap))
+                      (search "NOT IN THE LEXICON" first-gap)
+                      (search "Zorg" first-gap)
                       ;; a good parse returns T and reports no failure
                       parsed
                       (search "parsed:" good)

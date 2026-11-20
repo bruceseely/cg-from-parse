@@ -248,7 +248,8 @@ DIAGNOSE-PARSE for the REPL entry point."
                 do (multiple-value-bind (template why)
                        (unknown-word-template
                         surface
-                        (third (nth (1- i) lex))   ; preceding token's features
+                        ;; preceding token's features; the first word has none
+                        (and (plusp i) (third (nth (1- i) lex)))
                         (zerop i))
                      (format out "~6t~a~%~8t; ~a~%~8t; needed by: ~s~%~%"
                              template why sentence)))
