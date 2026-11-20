@@ -25,6 +25,7 @@
 ;;;   (:kind :clause :pred LEMMA :spec SPEC-NODE-OR-NIL :node PA-NODE
 ;;;    :tense :past/:present/:future/NIL :aspect :perfect/NIL
 ;;;    :voice :passive/NIL :clause-type :proposition/:situation/NIL
+;;;    :negated T/NIL
 ;;;    :cases (CASE ...) :adjuncts (ADJUNCT ...) :adverbs (LEMMA ...))
 ;;;                                              ; :adjuncts = PP adjuncts, each
 ;;;                                              ; (:prep WORD :relation REL
@@ -38,6 +39,8 @@
 ;;;                                              ; ("runs quickly")
 ;;;   (:clause-type distinguishes a that-clause complement (:proposition) from an
 ;;;    infinitival (:situation); NIL for the matrix clause -- see complement-type-for.)
+;;;   (:negated is T for a denied clause -- `does not eat' -- emitted as ~[G];
+;;;    see spec-negated-p and emit-clause-graph.)
 ;;; A case (one filled thematic role):
 ;;;   (:role ROLE-SYMBOL :gfunc GFUNC-SYMBOL :filler FILLER)
 ;;; A filler is one of:
@@ -1143,6 +1146,13 @@ because a sentence exercises it."
             (prog            :progressive)
             (t               nil)))))
 
+(defun spec-negated-p (spec-node)
+  "True when the PARSIFAL aux SPEC node is denied -- `does not', `is not',
+`will not', and their contractions. parsifal's NEGATION rule (*negation-rules*,
+in BUILD-AUX) hangs `not' on the aux and labels it `neg'; a contraction reaches
+the grammar as the same two words, so `doesn't' is labelled the same way."
+  (and spec-node (member 'pa::neg (pa::fe spec-node)) t))
+
 (defun clause-verb-node (node)
   "The verb leaf for a clause / VP / comp-np NODE (descends VP, then S, then a
 comp-np's embedded S), or NIL."
@@ -1183,6 +1193,7 @@ so descend to it (or use NODE itself if it already is the COMP-S)."
           :spec   spec
           :tense  (spec-tense spec)
           :aspect (spec-aspect spec)
+          :negated (spec-negated-p spec)
           :voice  (clause-voice node)
           :clause-type (clause-complement-form node)
           :node   node
@@ -1714,20 +1725,41 @@ arc-dest-ok-p but for the source side (add-arc-into-relation)."
                                (equal ct (cg::label st))))
               sts))))
 
+(defun emit-clause-graph (ir &key negated-context)
+  "Clause IR as a graph in a CHILD context of the current one (mirroring
+cgraph's own read-graph-referent-concept), so any coreference from inside back
+out to an enclosing concept must cross the context boundary (handled in
+emit-trace). NEGATED-CONTEXT marks that context as the inside of a negation,
+as the reader does for ~[...].
+
+A denied clause (:negated) is the graph ~[G]: one negated PROPOSITION concept
+whose referent is the clause's own graph G, a context further down."
+  (let* ((cg::*context*           (cg::make-context cg::*context* :negated negated-context))
+         (cg::*concepts-in-graph* (list)))
+    (cg::make-cgraph (if (getf ir :negated) (emit-negation ir) (emit-clause ir))
+                     cg::*context*)))
+
+(defun emit-negation (ir)
+  "The concept ~[G] for denied clause IR: an (anonymous) PROPOSITION, negated,
+holding the clause's graph G. Written ~[[EAT]-(agnt)->[GIRL] ...]. cgraph's
+realizer says it as G with `not' on its verb, at the top level and inside a
+that-clause alike."
+  (let ((concept (cg::make-concept
+                  (cg::get-concept-type (note-type-label *clausal-complement-type*))
+                  (cg::make-referent (emit-clause-graph (list* :negated nil ir)
+                                                        :negated-context t)
+                                     nil))))
+    (setf (cg::negated concept) t)
+    concept))
+
 (defun emit-clause-as-complement (ir)
   "Embed clause IR as a graph-referent concept -- [PROPOSITION: <inner graph>] for
 a that-clause, [SITUATION: <inner graph>] for an infinitival, per IR's
-:clause-type (see complement-type-for). The inner graph is built in a CHILD
-context (mirroring cgraph's own read-graph-referent-concept), so any coreference
-from inside back out to an enclosing concept must cross the context boundary
-(handled in emit-trace)."
-  (let* ((cg::*context*          (cg::make-context cg::*context*))
-         (cg::*concepts-in-graph* (list))
-         (pred-concept (emit-clause ir))
-         (graph        (cg::make-cgraph pred-concept cg::*context*))
-         (referent     (cg::make-referent graph nil)))
-    (cg::make-concept (cg::get-concept-type (note-type-label (complement-type-for ir)))
-                      referent)))
+:clause-type (see complement-type-for). A denied clause is a denial inside the
+wrapper, [PROPOSITION: ~[G]] -- the proposition that G is not so -- rather than
+a denied wrapper. See emit-clause-graph."
+  (cg::make-concept (cg::get-concept-type (note-type-label (complement-type-for ir)))
+                    (cg::make-referent (emit-clause-graph ir) nil)))
 
 (defun emit-trace (filler required-type)
   "Realize a trace (control/raising gap) as coreference with its antecedent.
@@ -1806,7 +1838,8 @@ which is why this re-registers on every extraction rather than once at load."
         (*node->corefvar*  (make-hash-table :test 'equal))
         (*corefvar-counter* 0))
     (ensure-complement-relation)
-    (cg::make-cgraph (emit-clause ir) cg::*context*)))
+    (cg::make-cgraph (if (getf ir :negated) (emit-negation ir) (emit-clause ir))
+                     cg::*context*)))
 
 ;;; ===========================================================================
 ;;; Top level
