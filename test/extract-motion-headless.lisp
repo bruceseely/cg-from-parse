@@ -4,7 +4,9 @@
 ;;;
 ;;;   "dave drives a car from Baltimore to Boston ."
 ;;;     -> [DRIVE]- (agnt)->[PERSON: Dave] (dest)->[PLACE: Boston]
-;;;                 (obj)->[AUTOMOBILE...] (src)->[CITY: Baltimore]
+;;;                 (inst)->[CAR] (src)->[CITY: Baltimore]
+;;;   "dave drives zelda from Baltimore to Boston ."
+;;;     -> ... (obj)->[WOMAN: Zelda] ...
 ;;;
 ;;; Three things were wrong, and the second hid the first:
 ;;;
@@ -20,6 +22,13 @@
 ;;;     [BOSTON]. It is now a named individual, [PLACE: Boston] -- or, when its
 ;;;     lexicon entry names a kind of place among its features (`city'),
 ;;;     [CITY: Baltimore]. A person's name is refined the same way (`woman').
+;;;
+;;; And what fills drive's object: a vehicle is the INSTRUMENT, (inst), a person
+;;; the one driven, (obj) -- DRIVE's canonical graph. One frame does both:
+;;; `(*obj ins)' lets the object try `ins' as well as the first open case, and
+;;; the markers decide -- ins takes only the inanimate, and drive's own `neut'
+;;; list only humans. (neut) must be optional, or "drives a car" leaves an
+;;; obligatory slot empty; (ins) too, or "drives zelda" drops her.
 ;;;
 ;;; Runs in a fresh environment on cgraph's test types, so the shared test
 ;;; catalog is untouched.
@@ -39,7 +48,7 @@
 ;; destination (as cgraph-types' lexicon.dict now does), a verb with only a
 ;; destination (for the fallback), and a place name of our own.
 (let ((*package* (find-package :parsifal)))
-  (dolist (form '("(df drive feats (mainverb pres tnsless v-3s) cf (neut (pfrom) (pto) agt) markers act)"
+  (dolist (form '("(df drive feats (mainverb pres tnsless v-3s) cf ((*obj ins) (neut) (ins) (pfrom) (pto) agt) neut (|#| hanim |#|) markers act)"
                   "(df haul feats (mainverb pres tnsless v-3s) cf (neut (pto) agt) markers act)"
                   "(df baltimore feats (noun ns n3p propnoun place city) markers (place))"
                   ;; a person's name that says which kind of person
@@ -81,7 +90,24 @@
           (check "nor BALTIMORE: a city is an individual"
                  (null (ignore-errors (cg::get-concept-type 'cg::baltimore))))
           (check "says it back, from before to"
-                 (equal said "Dave drives a car from Baltimore to Boston.") said))
+                 (equal said "Dave drives a car from Baltimore to Boston.") said)
+          (check "a car driven is the instrument: (inst)->[CAR]"
+                 (and text (search "(INST)→[CAR]" text)) text)
+          (check "  not the object" (and text (not (search "(OBJ)" text))) text))
+
+        ;; A person driven is the object -- the same frame, the markers decide.
+        (setf dropped '())
+        (let ((text (extract "dave drives zelda from Baltimore to Boston .")))
+          (check "a person driven is the object: (obj)->[WOMAN: Zelda]"
+                 (and text (search "(OBJ)→[WOMAN:ZELDA]" text)) text)
+          (check "  not the instrument" (and text (not (search "(INST)" text))) text)
+          (check "  and the places still land"
+                 (and text (search "(SRC)→[CITY:BALTIMORE]" text)
+                      (search "(DEST)→[PLACE:BOSTON]" text)) text)
+          (check "  nothing dropped" (null dropped) dropped))
+        (let ((text (extract "dave drives a car .")))
+          (check "the instrument without a destination: (inst)->[CAR]"
+                 (and text (search "(INST)→[CAR]" text)) text))
 
         ;; The lexicon says what kind of thing a name names.
         (multiple-value-bind (text said) (extract "zelda drives a car to Oz .")

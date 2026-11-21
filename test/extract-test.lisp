@@ -10,4 +10,5 @@ which needs a live cgraph (and, for the reader, a live parser) image."
   (and (eq (case-role->relation 'pa::agt)  'cg::agnt)
        (eq (case-role->relation 'pa::neut) 'cg::obj)
        (eq (case-role->relation 'pa::dat)  'cg::rcpt)
+       (eq (case-role->relation 'pa::ins)  'cg::inst)
        (null (case-role->relation 'pa::nonesuch))))

@@ -101,7 +101,8 @@ type set without `src', say) loses one phrase, not the whole extraction."
         (cons 'pa::exch   'cg::exch)   ; exchange  -> exch  (ACT -> ENTITY)
         (cons 'pa::pto    'cg::dest)   ; direction -> dest  (EVENT -> PLACE)
         (cons 'pa::pfrom  'cg::src)    ; origin    -> src   (EVENT -> PLACE)
-        (cons 'pa::manner 'cg::manr))  ; manner    -> manr  (ACT -> MANNER)
+        (cons 'pa::manner 'cg::manr)   ; manner    -> manr  (ACT -> MANNER)
+        (cons 'pa::ins    'cg::inst))  ; instrument -> inst (EVENT -> ENTITY)
   "PARSIFAL thematic case roles (in :parsifal) mapped to cgraph relation labels
 (in :conceptual-graphs). Each relation is emitted as [PRED]->(rel)->[filler], so
 the predicate (an ACT/EVENT) is the SOURCE -- only relations whose source accepts
@@ -119,6 +120,15 @@ for it on 2026-11-20. The catalog's `from' is entity -> entity and means an
 ordering between concepts, not a motion origin, so it could not serve. A
 catalog without `src' drops the origin with a DROPPED-PHRASE-WARNING (see
 RELATION-KNOWN-P) instead of failing the extraction.
+
+`ins', Marcus's instrument, maps to `inst' (EVENT -> ENTITY). It is filled
+two ways: by a `with'-PP on a verb whose frame has (ins) -- `with' is
+cases-marked-by (ins com), so \"hit the ball WITH A BAT\" fills the case
+slot and never reaches the WITH -> inst adjunct path -- and by a direct
+object, where a frame lets the object fill it: cgraph-types' `drive' is
+cf ((*obj ins) (neut) (ins) ...) with neut (# hanim #), so a car is the
+instrument and a person the object. Unmapped, both were dropped without a
+word (see CASE-ROLE->RELATION's caller, which now warns).
 
 agt/neut/dat are exercised by the test verbs; the
 prepositional dative (give's `to' PP) also fills DAT. loc/manr are wired and
@@ -1644,6 +1654,11 @@ emit-possession) -- neither has a predicate concept."
              (rel-label (if clausal
                             (complement-relation-for pred-concept filler)
                             (case-relation-for pred-concept role))))
+        ;; A case PARSIFAL filled but no relation is mapped for: say so. An
+        ;; unmapped `ins' lost every instrument this way, in silence.
+        (unless (or rel-label clausal)
+          (warn-dropped "cg-from-parse: the ~(~a~) case of [~a] dropped: no relation is mapped for it (*case-role->relation*)"
+                        role (getf ir :pred)))
         (when (and rel-label
                    (relation-known-p rel-label (format nil "the ~(~a~) case" role)))
           (let* ((relation  (make-relation* rel-label))

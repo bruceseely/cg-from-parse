@@ -8,6 +8,13 @@
 ;;; a word added to lexicon.dict went on failing to parse until a fresh image.
 ;;; It now re-reads the file when its write date moves on.
 ;;;
+;;; And an EDITED verb takes effect too. Re-reading stored drive's new `cf',
+;;; but `drives' had been built with a copy of the old frame, and parsifal
+;;; never rebuilt a word that had features -- so the old frame went on being
+;;; used until a fresh image (while a new `neut' marker list, read off the root,
+;;; took effect at once). Parsifal now forgets what was built from a redefined
+;;; word. Checked here with a verb parsed, its frame edited, and parsed again.
+;;;
 ;;; The domain is a temporary copy of cgraph's test types plus a lexicon.dict,
 ;;; so nothing outside the temp directory is read or written.
 ;;;
@@ -42,7 +49,7 @@ once by loading this file and once by the headless runner."
          ;; the temp domain is gone once the test is over.
          (saved-file *domain-lexicon-loaded*)
          (saved-date *domain-lexicon-write-date*)
-         before after)
+         before after frame-before frame-after)
     (ensure-directories-exist dir)
     (unwind-protect
          (progn
@@ -68,16 +75,39 @@ once by loading this file and once by the headless runner."
                (sleep 1.1)
                (with-open-file (out lexicon :direction :output :if-exists :append)
                  (format out "(jlike ~a block)~%" word))
-               (setf after (try)))))
+               (setf after (try))
+               ;; A verb, parsed in its inflected form, then its frame edited.
+               (flet ((drive-it ()
+                        (handler-case
+                            (handler-bind ((warning #'muffle-warning))
+                              (let ((cg::*allow-dynamic-individual-creation* t))
+                                (sentence->cg-text (format nil "dave ~avs a ~a ." word word)
+                                                   :on-missing :create)))
+                          (error (e) (format t "~&  parse error: ~a~%" e) nil)))
+                      (define-verb (frame)
+                        (sleep 1.1)
+                        (with-open-file (out lexicon :direction :output :if-exists :append)
+                          (format out "(df ~av feats (mainverb pres tnsless v-3s) cf ~a markers act)~%"
+                                  word frame))))
+                 (define-verb "(neut agt)")
+                 (setf frame-before (drive-it))
+                 (define-verb "(ins agt)")
+                 (setf frame-after (drive-it))))))
       (setf *domain-lexicon-loaded* saved-file
             *domain-lexicon-write-date* saved-date)
       (uiop:delete-directory-tree dir :validate t :if-does-not-exist :ignore))
-    (let ((pass (and (null before)
-                     (stringp after)
-                     (search (format nil "[~:@(~a~)" word) after))))
+    (let* ((word-pass (and (null before)
+                           (stringp after)
+                           (search (format nil "[~:@(~a~)" word) after)))
+           (frame-pass (and (stringp frame-before) (search "(obj)" frame-before)
+                            (stringp frame-after)  (search "(inst)" frame-after)
+                            (not (search "(obj)" frame-after))))
+           (pass (and word-pass frame-pass)))
       (when verbose
         (format t "~&before the edit: ~a~%after the edit:  ~a~%"
-                (or before "parse failed") after))
+                (or before "parse failed") after)
+        (format t "~&a verb's frame before the edit: ~a~%  and after: ~a~%"
+                frame-before frame-after))
       (format t "~&extract-lexicon-reload-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
       pass)))
 

@@ -87,8 +87,10 @@ date moves on, so a word added to lexicon.dict works at the next parse. This
 used to be once per session, and a DEFVAR, so even reloading cg-from-parse kept
 the old vocabulary, and a word added to the file went on failing to parse
 until a fresh image. Re-reading redefines every word in the file, which is what an edit
-wants; a word DELETED from the file stays defined until a fresh image, for the
-reason below.
+wants -- including the forms built from it: parsifal forgets the copy of a
+verb's old frame that `drives'/`drove' were built with (NOTE-REDEFINITION), so
+an edited `cf' takes effect at the next parse too. A word DELETED from the file
+stays defined until a fresh image, for the reason below.
 
 NO UNLOAD, by decision: word definitions accumulate on symbol plists, so
 switching domains means a fresh image. The type half CAN be swapped live
