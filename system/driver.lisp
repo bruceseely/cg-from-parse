@@ -387,6 +387,7 @@ report covers what they would have said.
   (ensure-cgraph)
   (ensure-domain-lexicon)
   (ensure-grammar)
+  (setf sentence (ensure-final-punctuation sentence))
   (let ((ok (handler-bind ((warning #'muffle-warning))
               (pa:parse-sentence sentence
                                  :initial-rule (intern "INITIAL-RULE" :parsifal)))))
@@ -401,6 +402,24 @@ report covers what they would have said.
                (when top (pa::stree top stream))))
            t))))
 
+(defun ensure-final-punctuation (sentence)
+  "SENTENCE, with \" .\" appended when it does not already end in `.', `?' or
+`!' (trailing whitespace aside).
+
+Marcus's grammar needs the final punctuation token to know the sentence is
+over -- every rule that completes an S waits for `finalpunc' -- so without it a
+well-formed sentence failed with a long report about a stall. Nothing is lost
+by supplying it: the mark carries no meaning the extractor reads. A question is
+known by its word order, not its `?' (\"did Dave drive a car .\" extracts as
+\"... ?\" does), and no input this parses is correctly unpunctuated. So it is
+supplied silently: a warning would say the same harmless thing every time, and
+teach its reader to skim past the dropped-phrase warnings that do matter."
+  (let ((trimmed (string-right-trim '(#\Space #\Tab #\Newline #\Return) sentence)))
+    (if (and (plusp (length trimmed))
+             (find (char trimmed (1- (length trimmed))) ".?!"))
+        sentence
+        (concatenate 'string trimmed " ."))))
+
 (defun parse-and-extract (sentence &key (on-missing *on-missing-type*))
   "Parse SENTENCE with PARSIFAL and return its conceptual graph (a cgraph graph).
 Loads + registers the full grammar on first use. Signals an error if PARSIFAL
@@ -413,7 +432,8 @@ lemmas (:error / :create / :top).
   (ensure-cgraph)
   (ensure-domain-lexicon)
   (ensure-grammar)
-  (let ((*on-missing-type* on-missing))
+  (let ((*on-missing-type* on-missing)
+        (sentence (ensure-final-punctuation sentence)))
     (if (pa:parse-sentence sentence :initial-rule (intern "INITIAL-RULE" :parsifal))
         (extract-graph)
         (error "cg-from-parse: PARSIFAL could not parse ~s~2%~a~%~
