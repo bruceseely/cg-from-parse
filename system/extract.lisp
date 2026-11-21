@@ -28,7 +28,7 @@
 ;;;    :negated T/NIL
 ;;;    :cases (CASE ...) :adjuncts (ADJUNCT ...) :adverbs (LEMMA ...))
 ;;;                                              ; :adjuncts = PP adjuncts, each
-;;;                                              ; (:prep WORD :relation REL
+;;;                                              ; (:prep WORD :relations (REL..)
 ;;;                                              ; :filler FILLER-IR) -> [PRED]-
 ;;;                                              ; (rel)->[OBJ] ("in the park" ->
 ;;;                                              ; (loc)->[PLACE]; "with the
@@ -138,7 +138,7 @@ see notes/next-steps.md) to surface -- PP adjuncts are NOT in the case frame.
 time/exch are the case-frame TIME and EXCH slots PARSIFAL now fills (via our
 *bare-time-rules*, which turn a bare temporal into a `during'-PP filling TIME,
 and pay's for->exch PP): time -> `time' (the SAME relation the temporal
-PP-adjunct path uses, adjunct-relation), exch -> `exch'. Both are case slots,
+PP-adjunct path uses, adjunct-relations), exch -> `exch'. Both are case slots,
 so unlike the adjunct/adverb paths they emit here in the case walk.")
 
 (defparameter *predicate-root* 'cg::act
@@ -175,38 +175,47 @@ otherwise the default *case-role->relation* applies."
       (case-role->relation role)))
 
 (defparameter *preposition->relation*
-  (list ;; locative -> loc (⊤ -> place)
-        (cons "IN"     'cg::loc) (cons "ON"      'cg::loc)
-        (cons "AT"     'cg::loc) (cons "INSIDE"  'cg::loc)
-        (cons "NEAR"   'cg::loc) (cons "BY"      'cg::loc)
-        (cons "UNDER"  'cg::loc) (cons "BEHIND"  'cg::loc)
-        (cons "OVER"   'cg::loc)
+  (list ;; locative first: "in the park", "by the river". The instrument second:
+        ;; "in a car", "by car" -- an object that is no PLACE cannot be a loc,
+        ;; and where both fit the canonical graphs decide (see
+        ;; CHOOSE-ADJUNCT-RELATION).
+        (cons "IN"     '(cg::loc cg::inst)) (cons "BY"      '(cg::loc cg::inst))
+        (cons "ON"     '(cg::loc))          (cons "AT"      '(cg::loc))
+        (cons "INSIDE" '(cg::loc))          (cons "NEAR"    '(cg::loc))
+        (cons "UNDER"  '(cg::loc))          (cons "BEHIND"  '(cg::loc))
+        (cons "OVER"   '(cg::loc))
         ;; instrument -> inst (event -> entity). "sees the dog WITH the telescope"
         ;; -- exactly see's canonical (inst)->[OBJECT].
-        (cons "WITH"   'cg::inst)
+        (cons "WITH"   '(cg::inst))
         ;; direction -> dest / origin -> src (event -> place), the relations the
         ;; pto/pfrom CASES map to. Here for a verb that does not license them:
         ;; one unlicensed PP sends PARSIFAL's frame-fitting to the clause for
         ;; EVERY PP, so "drives a car from Baltimore to Boston" under a frame
         ;; with only (pto) lost "to Boston" too. A `to' whose object is no
         ;; place is still dropped, with a warning, by EMIT-ADJUNCT's dest check.
-        (cons "TO"     'cg::dest) (cons "FROM"    'cg::src))
-  "Adjunct-preposition word -> cgraph relation. A PP adjunct is a PP the verb did
-NOT license as a case (\"the man sees the dog in the park\"); PARSIFAL attaches it
-to the clause, and we link its object off the predicate. Locative prepositions map
-to `loc' (⊤ -> place); instrumental `with' maps to `inst' (event -> entity). An
-adjunct whose preposition isn't mapped here is skipped (with a warning), so an
-unknown preposition never aborts the extraction. NB temporal PPs are NOT keyed off
-this map alone: a temporal preposition (before/after/...) or a time-NP object
-(\"on monday\") routes to `time' via adjunct-relation, which resolves the loc/time
-ambiguity of in/on/at by the object's type. (Still future work: `with' comitative
--> an accompaniment relation; the licensed prepositional dative `to' is handled as
-a case, not here. `with' is read as instrument, not accompaniment: cgraph
-test-types have an `inst' relation but no comitative one.)")
+        (cons "TO"     '(cg::dest))         (cons "FROM"    '(cg::src)))
+  "Adjunct-preposition word -> the cgraph relations it can mean, most usual
+first. A PP adjunct is a PP the verb did NOT license as a case (\"the man sees
+the dog in the park\"); PARSIFAL attaches it to the clause, and we link its
+object off the predicate by ONE of these relations, chosen when the graph is
+built (CHOOSE-ADJUNCT-RELATION): of those whose dest type the object fits, the
+first a canonical graph supports -- the predicate's or the object's -- else
+simply the first.
+So a preposition is a row of data here, not code: \"by car\" and \"in a car\"
+are (inst) because a car is no PLACE, \"by the river\" stays (loc).
 
-(defun preposition->relation (prep-word)
-  "cgraph relation label for an adjunct PREP-WORD (\"in\"/\"on\"/... -> loc), else
-NIL. Matched by name so a :parsifal or :cl word symbol both resolve."
+An adjunct whose preposition isn't mapped is skipped (with a warning), so an
+unknown preposition never aborts the extraction. NB temporal PPs are NOT keyed
+off this map alone: a temporal preposition (before/after/...) or a time-NP
+object (\"on monday\") routes to `time' via adjunct-relations. (Still future
+work: `with' comitative -> an accompaniment relation, once a catalog has one --
+it would join WITH's list after inst; the licensed prepositional dative `to' is
+handled as a case, not here.)")
+
+(defun preposition->relations (prep-word)
+  "The cgraph relation labels an adjunct PREP-WORD can mean, most usual first
+(\"in\" -> (loc inst)), else NIL. Matched by name so a :parsifal or :cl word
+symbol both resolve."
   (and prep-word
        (cdr (assoc (string-upcase (string prep-word)) *preposition->relation*
                    :test #'string=))))
@@ -1155,7 +1164,7 @@ are skipped for now."
   '("BEFORE" "AFTER" "DURING" "UNTIL" "SINCE")
   "Prepositions whose PP adjunct is ALWAYS temporal (-> the `time' relation),
 whatever the object. The ambiguous locatives in/on/at are temporal only when their
-object is a time NP (\"on monday\" vs \"on the mat\") -- see adjunct-relation.")
+object is a time NP (\"on monday\" vs \"on the mat\") -- see adjunct-relations.")
 
 (defun temporal-preposition-p (prep)
   "True when PREP is a dedicated temporal preposition (before/after/...)."
@@ -1168,33 +1177,47 @@ object is a time NP (\"on monday\" vs \"on the mat\") -- see adjunct-relation.")
 so a PP over it is temporal even under an ambiguous preposition (\"on monday\")."
   (and np (member 'pa::time (ignore-errors (pa::fe np))) t))
 
-(defun adjunct-relation (prep obj)
-  "cgraph relation label for a PP adjunct, resolving the loc/time ambiguity of
-in/on/at by the object's type: a temporal preposition OR a time-NP object -> the
-`time' relation (situation -> time-period); otherwise the preposition's default
-(locatives -> loc, `with' -> inst). NIL if the preposition isn't mapped at all."
-  (cond ((temporal-preposition-p prep) 'cg::time)
-        ((np-temporal-p obj)           'cg::time)
-        (t (preposition->relation prep))))
+(defun adjunct-relations (prep obj)
+  "The candidate cgraph relations for a PP adjunct, most usual first. The
+loc/time ambiguity of in/on/at is settled here, by the parse: a temporal
+preposition OR a time-NP object -> just `time' (situation -> time-period).
+Otherwise the preposition's list (*preposition->relation*), from which
+CHOOSE-ADJUNCT-RELATION picks once the object's concept type is known. NIL if
+the preposition isn't mapped at all."
+  (cond ((temporal-preposition-p prep) (list 'cg::time))
+        ((np-temporal-p obj)           (list 'cg::time))
+        (t (preposition->relations prep))))
 
 (defun pp-adjunct-ir (pp seen)
-  "Adjunct IR for a surface PP node -- (:prep WORD :relation REL :filler OBJECT-IR)
--- or NIL if the PP has no object NP. The relation is resolved from the preposition
-AND the object's type (see adjunct-relation). The object recurses through
+  "Adjunct IR for a surface PP node -- (:prep WORD :relations (REL..) :filler
+OBJECT-IR) -- or NIL if the PP has no object NP. The candidates come from the
+preposition and the object NP (see adjunct-relations); the one used is chosen
+at emission, against the predicate (CHOOSE-ADJUNCT-RELATION). The object recurses through
 filler->ir, so it gets full NP treatment (determiner, adjectives, apposition, ...)."
   (let ((prep (ignore-errors (pa::word (pa::daughter 'pa::prep pp))))
         (obj  (ignore-errors (pa::daughter 'pa::np pp))))
     (when (and prep obj)
       (list :prep prep
-            :relation (adjunct-relation prep obj)
+            :relations (adjunct-relations prep obj)
             :filler (filler->ir obj seen)))))
+
+(defun clause-surface-node (node)
+  "The node whose daughters are clause NODE's surface constituents. A complement
+clause arrives as its COMP-NP wrapper -- that node carries the case frame -- but
+the clause's own PP adjuncts, adverbs and VP hang on the S under it:
+  NP5 (COMP-NP) > S2 (THAT-S) > VP2, PP2 \"in Maryland\"
+Read from the wrapper, \"Greg believes Dave drove to Miami in Maryland\" lost
+Maryland without a word. Any other node is its own surface."
+  (or (and (member 'pa::comp-np (ignore-errors (pa::fe node)))
+           (ignore-errors (pa::daughter 'pa::s node)))
+      node))
 
 (defun clause-adjuncts (node seen)
   "Adjunct IRs for clause NODE's surface PP adjuncts. These are the `pp' daughters
 PARSIFAL attached to the clause because the verb did NOT license them as a case
 (a licensed PP -- e.g. give's `to' -- fills a case instead and never surfaces as a
 clause pp daughter). Each becomes [PRED]-(rel)->[OBJ] in emit-clause."
-  (loop for pp in (ignore-errors (pa::daughters 'pa::pp node))
+  (loop for pp in (ignore-errors (pa::daughters 'pa::pp (clause-surface-node node)))
         for ir = (pp-adjunct-ir pp seen)
         when ir collect ir))
 
@@ -1207,7 +1230,7 @@ the VP's `np' daughters, skip the ones already consumed as cases (the object), a
 turn each remaining place/time deictic into a bare adjunct IR (:relation from
 deictic-relation, no :prep) -- emit-adjunct then links it off the predicate exactly
 like a PP adjunct: \"the man sees the dog here .\" -> [SEE]...(loc)->[HERE]."
-  (let* ((vp (ignore-errors (pa::daughter 'pa::vp node)))
+  (let* ((vp (ignore-errors (pa::daughter 'pa::vp (clause-surface-node node))))
          (case-fillers (mapcar #'second (ignore-errors (pa::getc 'pa::cases node)))))
     (loop for np in (ignore-errors (pa::daughters 'pa::np vp))
           for rel = (and (not (member np case-fillers :test #'equal))
@@ -1221,7 +1244,7 @@ grammar rule attached (e.g. QUICKLY in \"the man runs quickly\"). Only manner
 adverbs (PARSIFAL's `manner' feature) are collected; each becomes
 [PRED]-(manr)->[MANNER] in emit-clause, exactly as an adjective becomes
 [NOUN]-(attr)->[ADJ]."
-  (loop for adv in (ignore-errors (pa::daughters 'pa::adv node))
+  (loop for adv in (ignore-errors (pa::daughters 'pa::adv (clause-surface-node node)))
         for w = (and adv (member 'pa::manner (ignore-errors (pa::fe adv)))
                      (ignore-errors (pa::getr 'pa::word adv)))
         when w collect w))
@@ -1691,27 +1714,106 @@ emit-possession) -- neither has a predicate concept."
     pred-concept))
 
 (defun emit-adjunct (pred-concept adj)
-  "Emit [PRED]-(REL)->[OBJ] for a PP adjunct ADJ (:prep + :relation + :filler); REL
-was resolved from the preposition and the object type (adjunct-relation). Skips
-(with a warning) an unmapped preposition or an object whose type doesn't fit the
-relation's dest, so an adjunct never aborts the extraction."
-  (let ((rel-label (getf adj :relation)))
+  "Emit [PRED]-(REL)->[OBJ] for an adjunct ADJ: a PP (:prep, :relations, the
+candidates from its preposition) or a deictic (:relation alone). REL is chosen
+by CHOOSE-ADJUNCT-RELATION. Skips (with a warning) an unmapped preposition, or
+an object no candidate fits, so an adjunct never aborts the extraction."
+  (let* ((candidates (or (getf adj :relations)
+                         (let ((r (getf adj :relation))) (and r (list r)))))
+         (what       (format nil "PP adjunct (~a ...)" (getf adj :prep)))
+         ;; A candidate the catalog lacks is skipped quietly while another is
+         ;; there; RELATION-KNOWN-P's warning is for when none is.
+         (known      (or (remove-if-not (lambda (r) (ignore-errors (cg::get-relation-type r)))
+                                        candidates)
+                         (and candidates (relation-known-p (first candidates) what)
+                              (list (first candidates))))))
     (cond
-      ((null rel-label)
+      ((null candidates)
        (warn-dropped "cg-from-parse: PP adjunct (~a ...) dropped: no relation mapped for preposition"
                      (getf adj :prep)))
-      ((not (relation-known-p rel-label (format nil "PP adjunct (~a ...)" (getf adj :prep)))))
+      ((null known))
       (t
-       (let* ((relation    (make-relation* rel-label))
-              (dest-type   (cg::dest-type (cg::relation-type relation)))
-              (obj-concept (emit-filler (getf adj :filler) dest-type)))
+       ;; The filler is emitted against the first candidate's dest type, which is
+       ;; what an out-of-ontology noun is created under (:on-missing :create).
+       (let* ((first-rel   (make-relation* (first known)))
+              (obj-concept (emit-filler (getf adj :filler)
+                                        (cg::dest-type (cg::relation-type first-rel)))))
          (when obj-concept
-           (if (arc-dest-ok-p obj-concept relation)
-               (progn (cg::add-arc-into-relation pred-concept relation)
-                      (cg::set-arc-from-relation relation obj-concept))
-               (warn-dropped "cg-from-parse: PP adjunct [~a] not linked via (~a): type ~a doesn't fit dest ~a"
-                             (getf adj :prep) rel-label
-                             (cg::label (cg::concept-type obj-concept)) (cg::label dest-type)))))))))
+           (let ((chosen (choose-adjunct-relation pred-concept obj-concept known)))
+             (if chosen
+                 (let ((relation (if (eq chosen (first known)) first-rel (make-relation* chosen))))
+                   (cg::add-arc-into-relation pred-concept relation)
+                   (cg::set-arc-from-relation relation obj-concept))
+                 (warn-dropped "cg-from-parse: PP adjunct [~a] dropped: type ~a fits none of ~{(~(~a~))~^ ~}"
+                               (getf adj :prep)
+                               (cg::label (cg::concept-type obj-concept)) known)))))))))
+
+(defun choose-adjunct-relation (pred-concept obj-concept candidates)
+  "The relation, of CANDIDATES (labels, most usual first), to link OBJ-CONCEPT
+off PRED-CONCEPT by -- or NIL when none will take it.
+
+Only candidates whose dest type the object fits are in the running. Of those,
+one a CANONICAL GRAPH supports wins (CANONICAL-SUPPORTS-P) -- in candidate
+order, so where several are supported the preposition's usual meaning stands.
+DRIVE's canonical graph has (inst)->[VEHICLE], so \"by car\" and \"in a car\" are
+its instrument. Failing any support, the first fitting candidate: \"by the
+river\" is (loc) because a river is a PLACE, \"in the box\" is (loc) only if a box
+is one, else the next candidate."
+  (let ((fitting (remove-if-not (lambda (label) (dest-type-fits-p obj-concept label))
+                                candidates)))
+    (or (find-if (lambda (label) (canonical-supports-p pred-concept label obj-concept))
+                 fitting)
+        (first fitting))))
+
+(defun canonical-supports-p (pred-concept relation-label obj-concept)
+  "True when a canonical graph says [PRED]->(RELATION-LABEL)->[OBJ] is what one
+of these takes -- from EITHER end, each read through cgraph's
+NEAREST-CANONICAL-GRAPHS (a type's own graph, or the nearest one above on each
+supertype branch):
+
+  the predicate's  an arc [PRED]->(rel)->[T], OBJ's type at or under T.
+                   DRIVE: (inst)->[VEHICLE].
+  the object's     an arc [OBJ]<-(rel)<-[S], PRED's type at or under S.
+                   PLACE: [PLACE]<-(loc)<-[...].
+
+Both ends, because one end alone misleads: SEE's canonical graph takes any
+OBJECT as (inst), so a houseboat -- a VEHICLE and a PLACE -- would be what Dave
+sees WITH in \"Dave sees Zelda in a houseboat\" had the predicate the only say.
+The place's own graph supports (loc) as well, and candidate order then keeps
+`in' locative. NIL for an out-of-ontology type (a bare string), which no
+canonical graph can name."
+  (let ((pct (cg::concept-type pred-concept))
+        (oct (cg::concept-type obj-concept)))
+    (and (not (typep pct 'string))
+         (not (typep oct 'string))
+         (or (canonical-arc-p pct :forward relation-label oct)
+             (canonical-arc-p oct :reverse relation-label pct)))))
+
+(defun canonical-arc-p (head-type direction relation-label other-type)
+  "Does a canonical graph bearing on HEAD-TYPE have a DIRECTION arc (:forward =
+the head is the source) labelled RELATION-LABEL whose far end OTHER-TYPE is at
+or under?"
+  (loop for (nil . graph) in (ignore-errors (cg::nearest-canonical-graphs head-type))
+        thereis
+        (loop for arc in (ignore-errors (cg::canonical-graph-arcs graph))
+              thereis (and (eq (getf arc :direction) direction)
+                           (string-equal (getf arc :relation) (string relation-label))
+                           (let ((want (ignore-errors (cg::get-concept-type (getf arc :type)))))
+                             (and want
+                                  (or (eq other-type want)
+                                      (eq want cg::*concept-type-top*)
+                                      (cg::supertype-p other-type want))))))))
+
+(defun dest-type-fits-p (concept relation-label)
+  "ARC-DEST-OK-P by label, without making a relation -- for weighing candidates,
+which must not pass through MAKE-RELATION* (that records the label as emitted)."
+  (let ((rt (ignore-errors (cg::get-relation-type relation-label)))
+        (ct (cg::concept-type concept)))
+    (and rt
+         (let ((dt (cg::dest-type rt)))
+           (or (typep ct 'string)
+               (cg::supertype-p ct dt)
+               (equal ct (cg::label dt)))))))
 
 (defun arc-dest-ok-p (concept relation)
   "Would CONCEPT satisfy RELATION's out-arc (dest) type? Mirrors the test in

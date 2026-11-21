@@ -109,6 +109,52 @@
           (check "the instrument without a destination: (inst)->[CAR]"
                  (and text (search "(INST)→[CAR]" text)) text))
 
+        ;; Other prepositions for the same instrument. BY and IN can each mean
+        ;; (loc) or (inst); a car is no PLACE, so it is the instrument, whatever
+        ;; the preposition -- and a city after the same IN is still where.
+        (setf dropped '())
+        (let ((by (extract "dave drives from Baltimore to Boston by car ."))
+              (in (extract "dave drives to Boston in a car ."))
+              (where (extract "dave drives to Boston in Baltimore .")))
+          (check "by car -> (inst)->[CAR]" (and by (search "(INST)→[CAR]" by)) by)
+          (check "in a car -> (inst)->[CAR]" (and in (search "(INST)→[CAR]" in)) in)
+          (check "in Baltimore -> (loc), not (inst)"
+                 (and where (search "(LOC)→[CITY:BALTIMORE]" where)
+                      (not (search "(INST)" where))) where)
+          (check "  nothing dropped" (null dropped) dropped))
+
+        ;; A complement clause keeps its PPs: they hang on the S inside the
+        ;; COMP-NP, and were read off the wrapper, which has none.
+        (let ((text (extract "zelda believes dave drives to Boston in a car .")))
+          (check "a PP inside a complement clause is kept: (inst)->[CAR]"
+                 (and text (search "(INST)→[CAR]" text)) text))
+
+        ;; The canonical graphs choose when the object fits more than one
+        ;; candidate. A HOUSEBOAT is a VEHICLE and a PLACE: SEE's graph takes any
+        ;; OBJECT as (inst), but PLACE's takes anything as the source of (loc), so
+        ;; both are supported and IN's usual (loc) stands. A RAFT's own graph has
+        ;; only PERSONs in it, so for PILOT -- whose graph takes a VEHICLE as
+        ;; (inst) -- the instrument is the one supported.
+        (cg::ensure-concept-types-exist
+         '((:label cg::houseboat :supertypes (cg::vehicle cg::place))
+           (:label cg::raft :supertypes (cg::vehicle cg::place)
+            :canonical-graph "[RAFT]←(loc)←[PERSON].")
+           (:label cg::pilot :supertypes (cg::act)
+            :canonical-graph "[PILOT]- (agnt)→[PERSON] (inst)→[VEHICLE].")))
+        (flet ((choose (pred obj)
+                 (choose-adjunct-relation (cg::make-concept pred nil) (cg::make-concept obj nil)
+                                          '(cg::loc cg::inst))))
+          (check "both ends support: candidate order keeps (loc) -- sees in a houseboat"
+                 (eq (choose 'cg::see 'cg::houseboat) 'cg::loc) (choose 'cg::see 'cg::houseboat))
+          (check "only the predicate's graph supports: (inst) -- pilots in a raft"
+                 (eq (choose 'cg::pilot 'cg::raft) 'cg::inst) (choose 'cg::pilot 'cg::raft))
+          (check "no support either way: the first that fits -- (loc) for a city"
+                 (eq (choose 'cg::eat 'cg::city) 'cg::loc) (choose 'cg::eat 'cg::city))
+          (check "a type no candidate fits is chosen by none"
+                 (null (choose-adjunct-relation (cg::make-concept 'cg::see nil)
+                                                (cg::make-concept 'cg::automobile nil)
+                                                '(cg::loc)))))
+
         ;; The lexicon says what kind of thing a name names.
         (multiple-value-bind (text said) (extract "zelda drives a car to Oz .")
           (check "a `woman' feature makes a person's name [WOMAN: Zelda]"
