@@ -24,6 +24,8 @@
 ;;;      that event)
 ;;;   6. with-fresh-identity isolates a registry; reset-name-registry clears it
 ;;;   7. each cgraph environment has a registry of its own
+;;;   8. a name is one individual across comparable types (PLACE/CITY), narrowed
+;;;      to the more specific; incomparable types (DOG/PERSON) stay two
 ;;;
 ;;;   sbcl --non-interactive --disable-debugger \
 ;;;     --eval '(ql:quickload :swank)' --eval '(ql:quickload :cg-from-parse)' \
@@ -193,10 +195,53 @@
         (remhash e1 *name-registries*)
         (remhash e2 *name-registries*)))))
 
+;;; 8. A name is one individual across comparable types: a mention that is more
+;;;    specific narrows the individual's type, and incomparable types stay
+;;;    apart. Called on the registry directly -- whether a dictionary entry says
+;;;    `city' is not what is being tested.
+(defun extract-identity-lattice-test (&optional (verbose t))
+  (flet ((ty (label) (cg::get-concept-type (intern label :cg))))
+    (with-fresh-identity
+      (let* (;; PLACE then CITY: one Boston, narrowed to CITY
+             (b1 (registered-individual (ty "PLACE") "Boston"))
+             (b2 (registered-individual (ty "CITY") "Boston"))
+             ;; ... and a later PLACE mention still finds it
+             (b3 (registered-individual (ty "PLACE") "Boston"))
+             (narrowed (and (eq b1 b2) (eq b2 b3)
+                            (eq (cg::individual-type b1) (ty "CITY"))))
+             ;; WOMAN then PERSON: one Sue, and the type does NOT widen
+             (s1 (registered-individual (ty "WOMAN") "Sue"))
+             (s2 (registered-individual (ty "PERSON") "Sue"))
+             (kept (and (eq s1 s2)
+                        (eq (cg::individual-type s1) (ty "WOMAN"))))
+             ;; incomparable: Spot the dog and Spot the person are two
+             (d  (registered-individual (ty "DOG") "Spot"))
+             (p  (registered-individual (ty "PERSON") "Spot"))
+             (apart (not (eq d p)))
+             ;; ambiguous: ANIMATE Spot is comparable with both, so neither
+             (a1 (registered-individual (ty "ANIMATE") "Spot"))
+             (a2 (registered-individual (ty "ANIMATE") "Spot"))
+             (ambiguous (and (not (eq a1 d)) (not (eq a1 p)) (eq a1 a2)
+                             (eq (cg::individual-type d) (ty "DOG"))
+                             (eq (cg::individual-type p) (ty "PERSON"))))
+             ;; ... while an exact-type mention still finds its own
+             (exact (and (eq d (registered-individual (ty "DOG") "Spot"))
+                         (eq p (registered-individual (ty "PERSON") "Spot"))))
+             (pass (and narrowed kept apart ambiguous exact)))
+        (when verbose
+          (format t "~&PLACE→CITY one Boston, narrowed: ~a   WOMAN/PERSON one Sue, kept WOMAN: ~a~%"
+                  narrowed kept)
+          (format t "~&DOG/PERSON Spot two: ~a   ANIMATE Spot neither: ~a   exact finds own: ~a~%"
+                  apart ambiguous exact)
+          (name-registry-report))
+        (format t "~&extract-identity-lattice-test: ~:[FAILED <<<~;passed~]~%" pass)
+        pass))))
+
 (defun extract-identity-headless-suite (&optional (verbose t))
   (let ((a (extract-identity-headless-test verbose))
         (b (extract-identity-scope-test verbose))
-        (c (extract-identity-environment-test verbose)))
-    (and a b c)))
+        (c (extract-identity-environment-test verbose))
+        (d (extract-identity-lattice-test verbose)))
+    (and a b c d)))
 
 (extract-identity-headless-suite)
