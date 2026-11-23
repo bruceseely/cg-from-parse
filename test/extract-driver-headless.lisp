@@ -32,15 +32,26 @@
                                                    (parse-and-extract "the man sees the dog   ")))))
            (t-bang  (ignore-errors (string-upcase (cg::format-cgraph
                                                    (parse-and-extract "the man sees the dog !")))))
-           (t-q     (ignore-errors (string-upcase (cg::format-cgraph
-                                                   (parse-and-extract "does the man see the dog")))))
+           ;; A question is a query pattern, so its event is generic: compare it
+           ;; with the statement extracted as a pattern too, and check it was
+           ;; read as a question at all.
+           (q-mood  nil)
+           (t-q     (ignore-errors
+                     (multiple-value-bind (g mood) (parse-and-extract "does the man see the dog")
+                       (setf q-mood mood)
+                       (string-upcase (cg::format-cgraph g)))))
+           (t1-pattern (ignore-errors
+                        (let ((*individuate-events* nil))
+                          (string-upcase (cg::format-cgraph
+                                          (parse-and-extract "the man sees the dog ."))))))
            ;; Each parse mints a new event id (#5, #12 ...), and the formatter
            ;; indents the arcs by the head's width; compare without either.
-           (punct-pass (and (flet ((same (a)
+           (punct-pass (and (flet ((same (a ref)
                                      (flet ((norm (x) (remove-if (lambda (c) (member c '(#\Space #\Newline)))
                                                                  (cl-ppcre:regex-replace-all "#\\d+" x "#"))))
-                                       (and a t1 (equal (norm a) (norm t1))))))
-                              (and (same t-bare) (same t-space) (same t-bang) (same t-q)))
+                                       (and a ref (equal (norm a) (norm ref))))))
+                              (and (same t-bare t1) (same t-space t1) (same t-bang t1)
+                                   (same t-q t1-pattern) (eq q-mood :yes-no)))
                             (equal (ensure-final-punctuation "a b ?") "a b ?")
                             (equal (ensure-final-punctuation "a b.") "a b.")
                             (equal (ensure-final-punctuation "a b ") "a b .")))

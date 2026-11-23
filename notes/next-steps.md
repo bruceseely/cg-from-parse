@@ -48,11 +48,17 @@ and they compare through it. `determiner` additionally stopped counting `#`
 characters globally, since the predicate now carries one.
 
 **Found on the way, NOT fixed, and the next decision:**
-- **A question is individuated like any other clause.** That is wrong if you
-  want to use an extracted question as a QUERY PATTERN — a pattern carrying
-  `[SEE: #3]` matches only that event. Today the workaround is real and
-  documented: extract with `*individuate-events*` bound to NIL. The proper fix
-  is a mood marker in the IR, which this deliberately did not add.
+- ~~**A question is individuated like any other clause.**~~ **Done
+  2026-11-23.** The IR carries a `:mood` (`sentence-mood`: `:declarative`,
+  `:yes-no`, `:wh`, `:imperative`), `extract-graph` returns it as a second
+  value, and a question's events are left generic, so it is a query pattern.
+  `system/ask.lisp` adds TELL and ASK: a yes/no question is true when it
+  projects into the KB, and a wh-question answers with what its variable binds.
+  ASK checks tense itself, because projection ignores it. Test:
+  `extract-ask-headless`.
+- **Names across comparable types — done 2026-11-23.** The name registry is
+  keyed by name alone, so `[PLACE: Boston]` and `[CITY: Boston]` are one
+  individual, narrowed to CITY (see the block comment in `identity.lisp`).
 - **Definite common nouns still over-merge.** `build-referent` gives them
   `:id t`, so `[GIRL: #]` in two sentences are `individuals-equal`. The entity
   side has the same failure the event side just had, one level down. Whether

@@ -57,7 +57,8 @@
     ("negation"     . extract-negation-headless-test)
     ("passive-subject" . extract-passive-subject-headless-test)
     ("motion"       . extract-motion-headless-test)
-    ("lexicon-reload" . extract-lexicon-reload-headless-test))
+    ("lexicon-reload" . extract-lexicon-reload-headless-test)
+    ("ask"          . extract-ask-headless-test))
   "(label . test-function) for each extract-<label>-headless.lisp script.")
 
 (defun run-headless-tests (&key restore)

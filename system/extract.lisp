@@ -1339,10 +1339,44 @@ so descend to it (or use NODE itself if it already is the COMP-S)."
 
 (defun parse->ir (node)
   "Build a clause IR from a PARSIFAL parse NODE. Flushes the open frame first
-(like ctree) so the matrix predicate's filled cases are visible."
+(like ctree) so the matrix predicate's filled cases are visible. The top-level
+IR also carries the sentence's :mood (see SENTENCE-MOOD)."
   (pa::closeframe pa::openframe)
-  (let ((clause (clause-node-of node)))
-    (clause->ir clause (list clause))))
+  (let* ((clause (clause-node-of node))
+         (ir     (clause->ir clause (list clause))))
+    (list* :mood (sentence-mood node ir) ir)))
+
+(defun sentence-mood (node ir)
+  "What the sentence does with its proposition: :yes-no (asks whether it holds),
+:wh (asks for what fills a query variable), :imperative, or :declarative.
+
+PARSIFAL marks the root S YNQUEST / IMPER / DECL. Its wh-questions carry no mark
+of their own, so :wh is read off the IR instead: a question is one that has a
+queried element (a :query filler, \"who\" / \"what\" ...) anywhere in it."
+  (let ((feats (ignore-errors
+                (pa::fe (loop with n = node
+                              for up = (and n (ignore-errors (pa::father-node n)))
+                              while up do (setf n up)
+                              finally (return n))))))
+    (cond ((ir-has-query-p ir)               :wh)
+          ((member 'pa::ynquest feats)       :yes-no)
+          ((member 'pa::imper feats)         :imperative)
+          (t                                 :declarative))))
+
+(defun ir-has-query-p (ir)
+  "True when IR (a clause or filler IR, or a list of them) contains a queried
+element anywhere -- a nested complement counts (\"what does Sue believe Dave
+drove ?\")."
+  (cond ((atom ir) nil)
+        ((eq (getf ir :kind) :query) t)
+        (t (or (some #'ir-has-query-p
+                     (mapcar (lambda (c) (getf c :filler)) (getf ir :cases)))
+               (some #'ir-has-query-p
+                     (mapcar (lambda (a) (getf a :filler)) (getf ir :adjuncts)))))))
+
+(defun question-mood-p (mood)
+  "True for the moods whose graph is a QUERY PATTERN rather than a fact."
+  (member mood '(:yes-no :wh)))
 
 ;;; ===========================================================================
 ;;; Emission layer:  IR  ->  cgraph
@@ -2053,7 +2087,11 @@ which is why this re-registers on every extraction rather than once at load."
     label))
 
 (defun ir->cgraph (ir)
-  "Emit a complete cgraph graph from clause IR, in a fresh child context."
+  "Emit a complete cgraph graph from clause IR, in a fresh child context.
+
+A question (:mood :yes-no / :wh) is a QUERY PATTERN, so its events are left
+generic: individuated, \"did Dave drive a car ?\" would carry [DRIVE: #9] and
+match only that one, never-asserted event."
   ;; Start each extraction with clean cgraph coreference + variable caches:
   ;; both are shared across parses in cgraph's current environment
   ;; (*coref-labels* / *variables*), so a label
@@ -2064,7 +2102,9 @@ which is why this re-registers on every extraction rather than once at load."
   (let ((cg::*context*     (cg::make-context cg::*context*))
         (*node->concept*   (make-hash-table :test 'equal))
         (*node->corefvar*  (make-hash-table :test 'equal))
-        (*corefvar-counter* 0))
+        (*corefvar-counter* 0)
+        (*individuate-events* (and *individuate-events*
+                                   (not (question-mood-p (getf ir :mood))))))
     (ensure-complement-relation)
     (cg::make-cgraph (if (getf ir :negated) (emit-negation ir) (emit-clause ir))
                      cg::*context*)))
@@ -2076,5 +2116,9 @@ which is why this re-registers on every extraction rather than once at load."
 (defun extract-graph (&optional (parse pa::c))
   "Extract a conceptual graph from a PARSIFAL parse. PARSE is the root S node
 left in the global pa::c by parse-sentence (the default). Returns a cgraph
-graph object."
-  (ir->cgraph (parse->ir parse)))
+graph object, and as a second value the sentence's mood (SENTENCE-MOOD):
+:declarative, :yes-no, :wh or :imperative. A cgraph graph has no place to
+keep it, and a question's graph is a pattern, not a fact -- so a caller that
+stores graphs should look."
+  (let ((ir (parse->ir parse)))
+    (values (ir->cgraph ir) (getf ir :mood))))

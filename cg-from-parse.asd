@@ -28,7 +28,8 @@
            #:validate-ontology #:browse-types #:browse-lexicon
            #:diagnose-parse #:parse-failure-report #:lexical-scan
            #:reset-name-registry #:with-fresh-identity
-           #:name-registry-report #:*individuate-events*))
+           #:name-registry-report #:*individuate-events*
+           #:tell #:ask #:kb #:reset-kb))
 
 (in-package :asdf-user)
 
@@ -47,7 +48,8 @@
                 :components ((:file "identity")
                              (:file "extract")
                              (:file "render")
-                             (:file "driver")))
+                             (:file "driver")
+                             (:file "ask")))
                (:module "test"
                 :serial t
                 :depends-on ("system")

@@ -425,7 +425,9 @@ teach its reader to skim past the dropped-phrase warnings that do matter."
 Loads + registers the full grammar on first use. Signals an error if PARSIFAL
 can't parse SENTENCE -- with PARSE-FAILURE-REPORT\'s account of where and why
 (see DIAGNOSE-PARSE). ON-MISSING binds *on-missing-type* for out-of-ontology
-lemmas (:error / :create / :top).
+lemmas (:error / :create / :top). The second value is the sentence's mood --
+:declarative, :yes-no, :wh or :imperative (see EXTRACT-GRAPH); a question's
+graph is a query pattern, run it with ASK.
 
   (parse-and-extract \"the man gives the woman the book .\")
   (parse-and-extract \"the man sees the dog in the park .\" :on-missing :create)"
@@ -435,7 +437,7 @@ lemmas (:error / :create / :top).
   (let ((*on-missing-type* on-missing)
         (sentence (ensure-final-punctuation sentence)))
     (if (pa:parse-sentence sentence :initial-rule (intern "INITIAL-RULE" :parsifal))
-        (extract-graph)
+        (extract-graph)   ; graph, and the mood as a second value
         (error "cg-from-parse: PARSIFAL could not parse ~s~2%~a~%~
                 Re-run this report any time with ~
                 (diagnose-parse ~s)."

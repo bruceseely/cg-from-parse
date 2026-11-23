@@ -2,11 +2,12 @@
 ;;;
 ;;; Live yes-no question check: "does the dog see the man ?"
 ;;; A yes-no question has the SAME propositional content as the corresponding
-;;; declarative -- it asks whether that proposition holds. So it extracts to the
-;;; identical graph (the only parse difference is the sentence-type feature,
-;;; YNQUEST vs DECL); semantically it's that proposition used as a boolean /
-;;; existence query (run it through cgraph's query engine against a KB).
-;;;   "does the dog see the man ?"  ==  "the dog sees the man ."
+;;; declarative -- it asks whether that proposition holds (the only parse
+;;; difference is the sentence-type feature, YNQUEST vs DECL). But it is a QUERY
+;;; PATTERN, not a fact, so its event is left generic: [SEE: #3] would match
+;;; only that one event. So the question extracts to exactly the graph the
+;;; declarative gives as a pattern (*individuate-events* NIL), and ASK runs it.
+;;;   "does the dog see the man ?"  ==  "the dog sees the man ." as a pattern
 ;;;     -> [SEE]-(agnt)->[DOG: #] (obj)->[MAN: #].
 ;;;
 ;;;   sbcl --non-interactive --disable-debugger \
@@ -31,20 +32,20 @@
 (defun extract-yesno-headless-test (&optional (verbose t))
   (let* ((q (proposition-text "does the dog see the man ?"))
          (d (proposition-text "the dog sees the man ."))
+         (p (let ((*individuate-events* nil))
+              (proposition-text "the dog sees the man .")))
          (pass (and q (search "SEE" q) (search "DOG" q) (search "MAN" q)
                     (search "AGNT" q) (search "OBJ" q)
-                    ;; Same content, compared modulo individual markers: each
-                    ;; extraction individuates its event off a global counter, so
-                    ;; the markers differ by construction and the STRUCTURE is
-                    ;; what the claim is about. (An extracted question is
-                    ;; individuated like any other clause. If you want one as a
-                    ;; QUERY PATTERN, extract it with *individuate-events* NIL --
-                    ;; a pattern carrying [SEE: #3] matches only that event.)
-                    (equal (without-individual-ids q)
-                           (without-individual-ids d)))))
+                    ;; Same content as the declarative taken as a pattern --
+                    ;; identical text, no markers to strip.
+                    (equal q p)
+                    ;; ... and the declarative itself is still a fact: its
+                    ;; event is individuated, the question's is not.
+                    d (search "[SEE:#" d) (not (search "[SEE:#" q)))))
     (when verbose
-      (format t "~&question:    ~a~%" q)
-      (format t "~&declarative: ~a~%" d))
+      (format t "~&question:              ~a~%" q)
+      (format t "~&declarative:           ~a~%" d)
+      (format t "~&declarative, pattern:  ~a~%" p))
     (format t "~&extract-yesno-headless-test: ~:[FAILED <<<~;passed~]~%" pass)
     pass))
 
