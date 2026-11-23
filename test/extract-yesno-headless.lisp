@@ -6,9 +6,9 @@
 ;;; difference is the sentence-type feature, YNQUEST vs DECL). But it is a QUERY
 ;;; PATTERN, not a fact, so its event is left generic: [SEE: #3] would match
 ;;; only that one event. So the question extracts to exactly the graph the
-;;; declarative gives as a pattern (*individuate-events* NIL), and ASK runs it.
+;;; declarative gives as a pattern (*extract-as-pattern* T), and ASK runs it.
 ;;;   "does the dog see the man ?"  ==  "the dog sees the man ." as a pattern
-;;;     -> [SEE]-(agnt)->[DOG: #] (obj)->[MAN: #].
+;;;     -> [SEE]-(agnt)->[DOG] (obj)->[MAN].   (no dog or man told yet)
 ;;;
 ;;;   sbcl --non-interactive --disable-debugger \
 ;;;     --eval '(ql:quickload :swank)' --eval '(ql:quickload :cg-from-parse)' \
@@ -30,10 +30,12 @@
     (ignore-errors (string-upcase (cg::format-cgraph (ir->cgraph (parse->ir pa::c)))))))
 
 (defun extract-yesno-headless-test (&optional (verbose t))
+  ;; Both patterns are taken BEFORE the statement is told: once it is, "the
+  ;; dog" of either refers to its dog (discourse.lisp).
   (let* ((q (proposition-text "does the dog see the man ?"))
-         (d (proposition-text "the dog sees the man ."))
-         (p (let ((*individuate-events* nil))
+         (p (let ((*extract-as-pattern* t))
               (proposition-text "the dog sees the man .")))
+         (d (proposition-text "the dog sees the man ."))
          (pass (and q (search "SEE" q) (search "DOG" q) (search "MAN" q)
                     (search "AGNT" q) (search "OBJ" q)
                     ;; Same content as the declarative taken as a pattern --

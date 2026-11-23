@@ -59,11 +59,16 @@ characters globally, since the predicate now carries one.
 - **Names across comparable types — done 2026-11-23.** The name registry is
   keyed by name alone, so `[PLACE: Boston]` and `[CITY: Boston]` are one
   individual, narrowed to CITY (see the block comment in `identity.lisp`).
-- **Definite common nouns still over-merge.** `build-referent` gives them
-  `:id t`, so `[GIRL: #]` in two sentences are `individuals-equal`. The entity
-  side has the same failure the event side just had, one level down. Whether
-  "the girl" in sentence 5 is the girl from sentence 1 is a discourse question,
-  not a bug to fix silently.
+- ~~**Definite common nouns still over-merge.**~~ **Done 2026-11-23**, with
+  explicit discourse boundaries (`system/discourse.lisp`). A definite refers to
+  the most recent entity of its type in the current discourse (exact type
+  first, otherwise the single comparable one), or to a new one, and always
+  carries a numbered marker. An asserted indefinite can be its antecedent, and
+  is given the individual in place. `new-discourse` / `with-discourse` mark the
+  boundaries, and `with-fresh-identity` scopes one. Questions only read. Names,
+  possessed NPs, plurals and quantified NPs are not part of it. The churn was 5
+  suites, not the ~33 feared, because most assertions already compared through
+  `without-individual-ids`. Test: `extract-discourse-headless`.
 - **`include-cgraph` joining on ingest is still a policy, not a law**, and now
   that it no longer invents events, deciding it is cheap.
 

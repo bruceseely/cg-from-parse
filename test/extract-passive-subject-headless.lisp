@@ -2,7 +2,7 @@
 ;;;
 ;;; Live PASSIVE SUBJECT check: a passive's surface subject keeps its referent.
 ;;;
-;;;   "the pie was eaten ."      -> (obj)->[PIE: #]        "The pie was eaten."
+;;;   "the pie was eaten ."      -> (obj)->[PIE: #n]       "The pie was eaten."
 ;;;   "mitch was seen ."         -> (obj)->[PERSON: Mitch] "Mitch was seen."
 ;;;   "the pies were eaten ."    -> (obj)->[PIE: {*}]
 ;;;
@@ -36,7 +36,8 @@
       (destructuring-bind (sentence expected said-expected) case
         (handler-bind ((warning #'muffle-warning))
           (let* ((graph (ignore-errors (parse-and-extract sentence :on-missing :create)))
-                 (text  (and graph (remove #\Space (string-upcase (cg-text graph)))))
+                 (text  (and graph (without-individual-ids
+                                    (remove #\Space (string-upcase (cg-text graph))))))
                  (said  (and graph (ignore-errors (say-graph graph))))
                  (pass  (and text (search expected text)
                              (or (null said-expected) (equal said said-expected)))))

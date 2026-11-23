@@ -22,7 +22,10 @@ type loaders use plain READ)."
                (cg::*external-types-directory* nil)
                (cg::*cgraph-types-directory*
           (format nil "~atest/test-types/" (asdf:system-source-directory :cgraph))))
-    (cg::reset-cgraph)))
+    (cg::reset-cgraph))
+  ;; Each test file starts a story of its own: "the man" of the last test is not
+  ;; this test's man (discourse.lisp).
+  (new-discourse))
 
 ;;; --- comparing graphs across extractions -----------------------------------
 ;;;

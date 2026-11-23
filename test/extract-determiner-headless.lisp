@@ -1,8 +1,9 @@
 ;;; -*- Mode: LISP; Syntax: Common-lisp; Base: 10; Lowercase: Yes -*-
 ;;;
 ;;; Live determiner/definiteness check: "the man gives the woman a book ."
-;;; A definite NP ("the") gets the # referent ([X: #]); an indefinite NP ("a")
-;;; stays bare ([X]). So man/woman -> [MAN: #]/[WOMAN: #], book -> [BOOK].
+;;; A definite NP ("the") gets a numbered individual of the discourse ([X: #3],
+;;; system/discourse.lisp); an indefinite NP ("a") stays bare ([X]). So
+;;; man/woman -> [MAN: #3]/[WOMAN: #4], book -> [BOOK].
 ;;;
 ;;;   sbcl --non-interactive --disable-debugger \
 ;;;     --eval '(ql:quickload :swank)' --eval '(ql:quickload :cg-from-parse)' \
@@ -36,9 +37,12 @@
               ;; Named per-NP rather than counted: the PREDICATE now carries an
               ;; individual marker of its own (event individuation), so a global
               ;; count of "#" no longer says anything about the noun phrases.
+              ;; ... and a definite is a NUMBERED individual of the discourse
+              ;; ([MAN: #3], discourse.lisp), never the bare # any more.
+              (norm  (and flat (without-individual-ids flat)))
               (pass  (and flat
-                          (search "[MAN:#]"   flat)
-                          (search "[WOMAN:#]" flat)
+                          (search "[MAN:#]"   norm) (not (search "[MAN:#]"   flat))
+                          (search "[WOMAN:#]" norm) (not (search "[WOMAN:#]" flat))
                           (search "[BOOK]"    flat)      ; a book -> bare ...
                           (not (search "[BOOK:" flat))))) ; ... no referent
          (when verbose (format t "~&sentence: ~a~%graph:~%~a~%" sentence text))

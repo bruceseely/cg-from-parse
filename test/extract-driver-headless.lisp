@@ -41,7 +41,7 @@
                        (setf q-mood mood)
                        (string-upcase (cg::format-cgraph g)))))
            (t1-pattern (ignore-errors
-                        (let ((*individuate-events* nil))
+                        (let ((*extract-as-pattern* t))
                           (string-upcase (cg::format-cgraph
                                           (parse-and-extract "the man sees the dog ."))))))
            ;; Each parse mints a new event id (#5, #12 ...), and the formatter

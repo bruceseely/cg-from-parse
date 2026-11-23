@@ -60,7 +60,10 @@
     (let ((*on-missing-type* on-missing))
       (handler-bind ((warning #'muffle-warning))
         (let ((text (ignore-errors (cg::format-cgraph (ir->cgraph (parse->ir pa::c))))))
-          (values (and (stringp text) (remove #\Space (string-upcase text)))
+          ;; A definite is numbered now ([MAN:#3]); the assertions are about
+          ;; coreference, not which number it drew.
+          (values (and (stringp text)
+                       (without-individual-ids (remove #\Space (string-upcase text))))
                   text))))))
 
 (defun extract-anaphora-headless-test (&optional (verbose t))

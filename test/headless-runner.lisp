@@ -58,7 +58,8 @@
     ("passive-subject" . extract-passive-subject-headless-test)
     ("motion"       . extract-motion-headless-test)
     ("lexicon-reload" . extract-lexicon-reload-headless-test)
-    ("ask"          . extract-ask-headless-test))
+    ("ask"          . extract-ask-headless-test)
+    ("discourse"    . extract-discourse-headless-test))
   "(label . test-function) for each extract-<label>-headless.lisp script.")
 
 (defun run-headless-tests (&key restore)
@@ -77,6 +78,8 @@ See file header. RESTORE reloads your catalog + a fresh context afterward."
              (push (cons (car spec)
                          (ignore-errors
                           (load file)
+                          ;; the quiet re-run is a fresh story too
+                          (new-discourse)
                           (let ((*standard-output* (make-broadcast-stream)))
                             (funcall (cdr spec)))))
                    results)))

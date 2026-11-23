@@ -17,8 +17,8 @@
 ;;;   2. a named individual is the SAME object across sentences
 ;;;   3. within one sentence, coreference still shares ONE concept (the event
 ;;;      is individuated once, not once per mention)
-;;;   4. a definite entity keeps its bare `#' marker -- individuation is about
-;;;      EVENTS; `build-referent' is untouched
+;;;   4. a definite entity is a numbered individual too -- not by event
+;;;      individuation but by the discourse (system/discourse.lisp)
 ;;;   5. *individuate-events* NIL restores generic events, which is how you
 ;;;      extract a QUERY PATTERN (a pattern carrying [EAT: #3] matches only
 ;;;      that event)
@@ -96,7 +96,7 @@
                                                  (cg::id (cg::content (cg::referent c)))))
                                               sees))))
 
-           ;; --- 4: a definite entity keeps its bare # -------------------
+           ;; --- 4: a definite entity is numbered (by the discourse) ------
            (dog (and g2 (%typed-concept g2 "DOG")))
            (dog-id (and dog (ignore-errors (cg::id (cg::content (cg::referent dog))))))
 
@@ -119,8 +119,8 @@
              gc (eql 1 (length men))
              (eql 2 (length sees))
              (eql 2 (length (remove-duplicates see-ids)))
-             ;; 4. definite entity untouched -- bare #, i.e. id T
-             dog (eq t dog-id)
+             ;; 4. definite entity numbered -- never the bare #, id T
+             dog (numberp dog-id)
              ;; 5. the switch restores a generic event (no referent at all)
              gen gen-eat (null (cg::referent gen-eat)))))
       (when verbose

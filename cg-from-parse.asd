@@ -29,7 +29,9 @@
            #:diagnose-parse #:parse-failure-report #:lexical-scan
            #:reset-name-registry #:with-fresh-identity
            #:name-registry-report #:*individuate-events*
-           #:tell #:ask #:kb #:reset-kb))
+           #:tell #:ask #:kb #:reset-kb
+           #:new-discourse #:with-discourse #:discourse-report
+           #:*resolve-definites* #:*extract-as-pattern*))
 
 (in-package :asdf-user)
 
@@ -46,6 +48,7 @@
   :components ((:module "system"
                 :serial t
                 :components ((:file "identity")
+                             (:file "discourse")
                              (:file "extract")
                              (:file "render")
                              (:file "driver")

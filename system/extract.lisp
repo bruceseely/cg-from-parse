@@ -1915,6 +1915,16 @@ concepts, e.g. an unbound trace)."
                 ;; tense/voice -- not shown in linear form, used by the realizer.
                 (let ((q (getf filler :quantifier)))
                   (when q (setf (cg::concept-quantifier concept) q)))
+                ;; Which entity of the discourse this is: a definite is resolved
+                ;; ([DOG: #12]), an asserted indefinite opens one (discourse.lisp).
+                ;; A named appositive has already said which.
+                (unless (getf filler :appos)
+                  (note-discourse-entity concept
+                                         :determiner (getf filler :determiner)
+                                         :plural     (eq (getf filler :number) :plural)
+                                         :count      (getf filler :count)
+                                         :quantified (getf filler :quantifier)
+                                         :possessed  (getf filler :poss)))
                 ;; Adjective modifiers: [NOUN]->(attr)->[ADJ].
                 (dolist (adj (getf filler :adjs))
                   (emit-modifier concept *adjective-relation* adj))
@@ -2099,15 +2109,19 @@ match only that one, never-asserted event."
   ;; a new X1 resolve to the stale concept -- corrupting the *x/?x coref split.
   (cg::initialize-coreferences)
   (cg::initialize-variables)
-  (let ((cg::*context*     (cg::make-context cg::*context*))
-        (*node->concept*   (make-hash-table :test 'equal))
-        (*node->corefvar*  (make-hash-table :test 'equal))
-        (*corefvar-counter* 0)
-        (*individuate-events* (and *individuate-events*
-                                   (not (question-mood-p (getf ir :mood))))))
+  (let* ((pattern (or *extract-as-pattern* (question-mood-p (getf ir :mood))))
+         (cg::*context*     (cg::make-context cg::*context*))
+         (*node->concept*   (make-hash-table :test 'equal))
+         (*node->corefvar*  (make-hash-table :test 'equal))
+         (*corefvar-counter* 0)
+         (*extract-as-pattern* pattern)
+         (*individuate-events* (and *individuate-events* (not pattern))))
     (ensure-complement-relation)
-    (cg::make-cgraph (if (getf ir :negated) (emit-negation ir) (emit-clause ir))
-                     cg::*context*)))
+    ;; Definites are resolved against the discourse as they are emitted; what
+    ;; the sentence adds is applied once it has extracted (discourse.lisp).
+    (with-sentence-discourse (cg::*context* :write (not pattern))
+      (cg::make-cgraph (if (getf ir :negated) (emit-negation ir) (emit-clause ir))
+                       cg::*context*))))
 
 ;;; ===========================================================================
 ;;; Top level

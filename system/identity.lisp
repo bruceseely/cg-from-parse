@@ -128,9 +128,11 @@ Inside `with-fresh-identity' it clears that private registry."
   nil)
 
 (defmacro with-fresh-identity (&body body)
-  "Run BODY over a private registry, leaving the caller's untouched. For tests
-and for extracting a corpus that must not share individuals with another."
-  `(let ((*name-registry* (make-hash-table :test 'equal)))
+  "Run BODY over a private registry and a discourse of its own (discourse.lisp),
+leaving the caller's untouched. For tests and for extracting a corpus that must
+not share individuals with another."
+  `(let ((*name-registry* (make-hash-table :test 'equal))
+         (*discourse*     (make-discourse)))
      ,@body))
 
 ;;; Keyed by NAME alone; the type is settled by the lattice, not by the key.

@@ -67,9 +67,10 @@ The second value is the matching KB graphs (their head concepts), so an
 answer can be said back: (mapcar #'say-graph ...) on their graphs, or cgraph's
 SAY-QUERY-RESULTS on the raw results."
   (multiple-value-bind (pattern mood)
-      ;; A question's events are generic already; a statement ASKed must be a
-      ;; pattern too, or [DRIVE: #12] would match only itself.
-      (let ((*individuate-events* nil))
+      ;; A question is a pattern already; a statement ASKed must be one too, or
+      ;; [DRIVE: #12] would match only itself -- and asking must not add to the
+      ;; discourse (discourse.lisp).
+      (let ((*extract-as-pattern* t))
         (parse-and-extract sentence :on-missing on-missing))
     (when (eq mood :imperative)
       (error "cg-from-parse: ~s is a command -- there is nothing to look up." sentence))
