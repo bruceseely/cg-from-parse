@@ -5,7 +5,8 @@
 ;;;   1. a definite carries over between sentences: "the dog" twice is one dog,
 ;;;      with a NUMBERED marker
 ;;;   2. an indefinite links back: "a girl ... the girl" is one girl, and the
-;;;      earlier graph's [GIRL] gets the individual too
+;;;      earlier graph's [GIRL] gets the individual too -- and is still said
+;;;      "a girl"
 ;;;   3. within one sentence a mention only refers back: "a dog sees the dog"
 ;;;      is two dogs
 ;;;   4. an indefinite under negation is no antecedent
@@ -70,6 +71,9 @@
           (check "an indefinite stays generic until referred to" generic-at-first)
           (check "a girl ... the girl: one girl, the earlier graph changed"
                  (and (%dindiv girl1) (eq (%dindiv girl1) (%dindiv (%dconcept g2 "GIRL")))))
+          (check "the linked first mention still says \"a girl\""
+                 (and (equal (ignore-errors (say-graph g1)) "A girl eats a pie.")
+                      (equal (ignore-errors (say-graph g2)) "The girl sees the dog.")))
           (check "a referred-to entity is numbered"
                  (numberp (cg::id (%dindiv (%dconcept g2 "GIRL")))))
           (check "the dog twice: one dog"

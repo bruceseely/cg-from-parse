@@ -30,9 +30,9 @@
 ;;;    generic. When a later definite refers to it, the individual is minted
 ;;;    then and given to BOTH concepts -- the earlier graph is changed in place,
 ;;;    [GIRL] becoming [GIRL: #12], which is what makes "A girl came in. The
-;;;    girl sat down." one girl. (The generator says "the" for any individual,
-;;;    so the earlier sentence then regenerates as "The girl came in": a
-;;;    first-mention rule there is a generation task, not done here.)
+;;;    girl sat down." one girl. The earlier concept is also marked
+;;;    `concept-introduced' :indefinite, so the generator still says "a girl"
+;;;    there -- from the referent alone it would say "the".
 ;;;
 ;;;  - An indefinite that is NOT asserted is no antecedent: inside a negation
 ;;;    ("the girl does not eat a pie" -- there is no pie) or inside a belief or
@@ -211,7 +211,10 @@ catalog reloaded since -- see the stale-type guard in identity.lisp)."
                    ;; concepts get the individual too.
                    (setf (dentity-individual entity) indiv)
                    (dolist (c (dentity-concepts entity))
-                     (setf (cg::referent c) (cg::make-referent indiv))))
+                     (setf (cg::referent c) (cg::make-referent indiv))
+                     ;; ... and they keep the "a" they were said with: the
+                     ;; referent alone would make the generator say "the".
+                     (setf (cg::concept-introduced c) :indefinite)))
                  (unless (eq (cg::individual-type indiv) narrower)
                    (setf (cg::individual-type indiv) narrower))
                  (setf (dentity-type entity) narrower)
