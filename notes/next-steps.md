@@ -79,8 +79,9 @@ characters globally, since the predicate now carries one.
   a person who drives a car ?"); `:join nil` asks the record. Two cgraph fixes
   it needed: `query` results carry `:mapping`, so `ask` checks tense on the
   matched verb rather than the joined graph's head; and `copy-concept` keeps
-  tense, aspect, voice, quantifier, raising and negation. Cost: a copy and a
-  join on every `ask`.
+  tense, aspect, voice, quantifier, raising and negation. The view is cached
+  per KB and rebuilt when the KB's graphs change or the discourse rewrites an
+  earlier graph (`*graph-edits*`); a held view can be passed to `ask` as `:kb`.
 
 ---
 

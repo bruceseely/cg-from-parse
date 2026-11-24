@@ -131,7 +131,33 @@
               ;; ... but an entity the discourse linked does.
               (tell "the girl sees the dog .")
               (check "the discourse's girl joins the girl's graph in the view"
-                     (= 3 (length (cg::graphs (joined-view)))) (length (cg::graphs (joined-view)))))))))
+                     (= 3 (length (cg::graphs (joined-view)))) (length (cg::graphs (joined-view))))
+
+              ;; The view is cached, and rebuilt only when it is stale.
+              (let ((v (joined-view)))
+                (check "the view is cached: asked twice, the same view"
+                       (eq v (joined-view)))
+                (check "  and ASK reuses it rather than joining again"
+                       (progn (ask* "does dave drive a car ?") (eq v (joined-view))))
+                (check "a held view can be asked directly"
+                       (and (joined-view-p v)
+                            (equal (handler-case (ask "who drove a person who drives a car ?" :kb v)
+                                     (error (e) (princ-to-string e)))
+                                   '("[WOMAN:Zelda]"))))
+                (tell "zelda drove dave to Baltimore .")
+                (check "TELL makes the view stale"
+                       (not (eq v (joined-view)))))
+              ;; "the boy" gives the earlier "a boy" its individual IN PLACE,
+              ;; without TELL adding anything: the cache must notice that too.
+              (let ((v (joined-view)))
+                (parse-and-extract "the boy sees the dog .")
+                (check "a discourse link-back makes the view stale"
+                       (not (eq v (joined-view)))))
+              (let ((v (joined-view)))
+                (forget-joined-view)
+                (check "forget-joined-view drops it"
+                       (not (eq v (joined-view)))))
+              (check "the KB is not a view" (not (joined-view-p (kb)))))))))
     (format t "~&extract-ask-headless-test: ~:[FAILED <<<~;passed~]~%" results)
     results))
 

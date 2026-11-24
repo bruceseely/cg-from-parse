@@ -35,8 +35,17 @@
 ;;; never join, so "a girl eats a pie" and "a boy eats a pie" stay two pies; the
 ;;; join reaches nothing inside a nested context (a belief, a negation). What
 ;;; the view buys is a pattern that spans sentences: told "zelda drove dave" and
-;;; "dave drives a car", the view has one Dave who does both. It costs a copy and
-;;; a join on every ASK. :JOIN NIL asks the record itself.
+;;; "dave drives a car", the view has one Dave who does both. :JOIN NIL asks the
+;;; record itself.
+;;;
+;;; The view is CACHED per KB and rebuilt only when it is stale: when the KB's
+;;; graphs are not the ones it was built from (TELL added one, a graph was
+;;; removed or the list replaced), or when the discourse changed an earlier
+;;; graph in place (*GRAPH-EDITS*: "the girl" giving "a girl" its individual).
+;;; Anything else that edits a KB graph in place should call FORGET-JOINED-VIEW.
+;;; A view is shared by every caller, so treat it as read-only. It can be held
+;;; and asked directly -- (ask q :kb (joined-view)) -- and ASK will not join it
+;;; again.
 
 (in-package :cg-from-parse)
 
@@ -65,17 +74,54 @@ itself."
     (cg::add-cgraph graph kb)
     graph))
 
-(defun joined-view (&optional (kb (kb)))
-  "A fresh context holding a COPY of every graph in KB, joined where graphs
-carry the same individual (cgraph's :INDIVIDUALS alignment). KB is untouched:
-the join is destructive, so it runs on the copies."
+(defvar *joined-views* (make-hash-table :test 'eq :weakness :key)
+  "KB -> (stamp . view): the cached JOINED-VIEW of each KB. Weak on the KB, so a
+KB that is dropped (RESET-KB) takes its view with it.")
+
+(defvar *view-contexts* (make-hash-table :test 'eq :weakness :key)
+  "Every context JOINED-VIEW has returned, so ASK can tell a view from a KB.")
+
+(defun %view-stamp (kb)
+  "What a view of KB was built from: the discourse's edit count and KB's graphs."
+  (cons *graph-edits* (copy-list (cg::graphs kb))))
+
+(defun %stamp-current-p (stamp kb)
+  (and (= (car stamp) *graph-edits*)
+       (let ((graphs (cg::graphs kb)))
+         (and (= (length (cdr stamp)) (length graphs))
+              (every #'eq (cdr stamp) graphs)))))
+
+(defun %build-joined-view (kb)
   (let ((view (cg::make-context)))
     (dolist (g (cg::graphs kb))
       (cg::make-cgraph (cg::copy-cgraph g) view))
     (let ((cg:*alignment-strategy* :individuals))
       (handler-bind ((warning #'muffle-warning))
         (cg:consolidate-cgraphs view)))
+    (setf (gethash view *view-contexts*) t)
     view))
+
+(defun joined-view (&optional (kb (kb)))
+  "A context holding a COPY of every graph in KB, joined where graphs carry the
+same individual (cgraph's :INDIVIDUALS alignment). KB is untouched: the join is
+destructive, so it runs on the copies. Cached: the same view comes back until
+KB changes (see the header), so treat it as read-only."
+  (let ((cached (gethash kb *joined-views*)))
+    (if (and cached (%stamp-current-p (car cached) kb))
+        (cdr cached)
+        (let ((stamp (%view-stamp kb)))
+          (cdr (setf (gethash kb *joined-views*)
+                     (cons stamp (%build-joined-view kb))))))))
+
+(defun forget-joined-view (&optional (kb (kb)))
+  "Drop KB's cached joined view; the next ASK builds it again. Needed only after
+editing a KB graph in place by some means the cache cannot see."
+  (remhash kb *joined-views*)
+  nil)
+
+(defun joined-view-p (context)
+  "True when CONTEXT is a view JOINED-VIEW returned."
+  (values (gethash context *view-contexts*)))
 
 (defun ask (sentence &key (kb (kb)) (on-missing :create) (join t))
   "Answer SENTENCE from KB (the current environment's, by default).
@@ -86,7 +132,8 @@ the join is destructive, so it runs on the copies."
   statement        treated as \"is it true that ...?\": T or NIL.
 
 The question is answered from JOINED-VIEW of KB (see the header), so it may
-span sentences; JOIN NIL answers from KB's graphs as told, one at a time.
+span sentences; JOIN NIL answers from KB's graphs as told, one at a time. KB may
+itself be a view JOINED-VIEW returned; it is asked as it is.
 
 The second value is the matching graphs (their head concepts) -- copies in the
 joined view, KB's own with JOIN NIL -- so an answer can be said back:
@@ -101,7 +148,7 @@ raw results."
     (when (eq mood :imperative)
       (error "cg-from-parse: ~s is a command -- there is nothing to look up." sentence))
     (let* ((head    (cg::head pattern))
-           (store   (if join (joined-view kb) kb))
+           (store   (if (and join (not (joined-view-p kb))) (joined-view kb) kb))
            ;; Tense is checked on what each pattern concept MATCHED, not on the
            ;; matched graph's head: in a joined graph the head is whichever
            ;; sentence came first, and its tense is not the question's.

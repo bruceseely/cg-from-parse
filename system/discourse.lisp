@@ -63,6 +63,12 @@ discourse and spoken with a numbered marker. NIL restores the bare [X: #].")
 is read, never written. A question is extracted this way regardless; ASK binds
 it so that a statement it is asked is a pattern too.")
 
+(defvar *graph-edits* 0
+  "Counts the times the discourse changed a concept in an EARLIER graph in place
+-- \"the girl\" giving the [GIRL] of \"a girl\" its individual. Anything that
+caches a copy of graphs (ASK's joined view) compares this to know the copy is
+stale.")
+
 ;;; ---------------------------------------------------------------------------
 ;;; The discourse and its scopes
 ;;; ---------------------------------------------------------------------------
@@ -209,6 +215,7 @@ catalog reloaded since -- see the stale-type guard in identity.lisp)."
                  (when opened
                    ;; First definite mention of an indefinite: the earlier
                    ;; concepts get the individual too.
+                   (incf *graph-edits*)
                    (setf (dentity-individual entity) indiv)
                    (dolist (c (dentity-concepts entity))
                      (setf (cg::referent c) (cg::make-referent indiv))
