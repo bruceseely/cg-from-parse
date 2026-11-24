@@ -69,8 +69,18 @@ characters globally, since the predicate now carries one.
   possessed NPs, plurals and quantified NPs are not part of it. The churn was 5
   suites, not the ~33 feared, because most assertions already compared through
   `without-individual-ids`. Test: `extract-discourse-headless`.
-- **`include-cgraph` joining on ingest is still a policy, not a law**, and now
-  that it no longer invents events, deciding it is cheap.
+- ~~**`include-cgraph` joining on ingest is still a policy, not a law**~~ —
+  DECIDED 2026-11-24: **the KB is the record; ASK joins a copy.** `tell` keeps
+  one graph per sentence (`add-cgraph`); `ask` answers from `joined-view`, a
+  copy of the KB joined with cgraph's `:individuals` alignment (cgraph
+  a59c0e1), which joins only concepts carrying the same individual. Generic
+  concepts never join. Under `:automatic`, "a girl eats a pie" + "a boy eats a
+  pie" shared one pie. The view lets a question span sentences ("did zelda drive
+  a person who drives a car ?"); `:join nil` asks the record. Two cgraph fixes
+  it needed: `query` results carry `:mapping`, so `ask` checks tense on the
+  matched verb rather than the joined graph's head; and `copy-concept` keeps
+  tense, aspect, voice, quantifier, raising and negation. Cost: a copy and a
+  join on every `ask`.
 
 ---
 

@@ -23,10 +23,20 @@
 ;;; Dave drive a car ?" is not answered by "Dave drove a car".
 ;;;
 ;;; The KB is a cgraph context, one per cgraph environment (like the name
-;;; registry in identity.lisp, and for the same reason). TELL adds graphs with
-;;; ADD-CGRAPH -- nothing is joined; whether ingest should join is still an open
-;;; policy question (see notes/next-steps.md). Pass :KB to use a context of
-;;; your own.
+;;; registry in identity.lisp, and for the same reason). Pass :KB to use a
+;;; context of your own.
+;;;
+;;; THE KB IS THE RECORD; ASK JOINS A COPY. TELL adds each sentence as a graph
+;;; of its own (ADD-CGRAPH), so the KB says what was told, sentence by sentence,
+;;; and nothing is ever rewired. ASK answers from a JOINED VIEW: a copy of every
+;;; KB graph, joined with cgraph's :INDIVIDUALS alignment -- only where two
+;;; graphs carry the SAME individual (a name, or a numbered marker: an event, or
+;;; an entity the discourse linked, "a girl ... the girl"). Generic concepts
+;;; never join, so "a girl eats a pie" and "a boy eats a pie" stay two pies; the
+;;; join reaches nothing inside a nested context (a belief, a negation). What
+;;; the view buys is a pattern that spans sentences: told "zelda drove dave" and
+;;; "dave drives a car", the view has one Dave who does both. It costs a copy and
+;;; a join on every ASK. :JOIN NIL asks the record itself.
 
 (in-package :cg-from-parse)
 
@@ -55,7 +65,19 @@ itself."
     (cg::add-cgraph graph kb)
     graph))
 
-(defun ask (sentence &key (kb (kb)) (on-missing :create))
+(defun joined-view (&optional (kb (kb)))
+  "A fresh context holding a COPY of every graph in KB, joined where graphs
+carry the same individual (cgraph's :INDIVIDUALS alignment). KB is untouched:
+the join is destructive, so it runs on the copies."
+  (let ((view (cg::make-context)))
+    (dolist (g (cg::graphs kb))
+      (cg::make-cgraph (cg::copy-cgraph g) view))
+    (let ((cg:*alignment-strategy* :individuals))
+      (handler-bind ((warning #'muffle-warning))
+        (cg:consolidate-cgraphs view)))
+    view))
+
+(defun ask (sentence &key (kb (kb)) (on-missing :create) (join t))
   "Answer SENTENCE from KB (the current environment's, by default).
 
   yes/no question  T when it holds in KB, else NIL.
@@ -63,9 +85,13 @@ itself."
                    (\"[PERSON: Dave]\"), or NIL when there are none.
   statement        treated as \"is it true that ...?\": T or NIL.
 
-The second value is the matching KB graphs (their head concepts), so an
-answer can be said back: (mapcar #'say-graph ...) on their graphs, or cgraph's
-SAY-QUERY-RESULTS on the raw results."
+The question is answered from JOINED-VIEW of KB (see the header), so it may
+span sentences; JOIN NIL answers from KB's graphs as told, one at a time.
+
+The second value is the matching graphs (their head concepts) -- copies in the
+joined view, KB's own with JOIN NIL -- so an answer can be said back:
+(mapcar #'say-graph ...) on their graphs, or cgraph's SAY-QUERY-RESULTS on the
+raw results."
   (multiple-value-bind (pattern mood)
       ;; A question is a pattern already; a statement ASKed must be one too, or
       ;; [DRIVE: #12] would match only itself -- and asking must not add to the
@@ -75,9 +101,15 @@ SAY-QUERY-RESULTS on the raw results."
     (when (eq mood :imperative)
       (error "cg-from-parse: ~s is a command -- there is nothing to look up." sentence))
     (let* ((head    (cg::head pattern))
-           (results (remove-if-not (lambda (r) (tense-agrees-p head (getf r :graph)))
+           (store   (if join (joined-view kb) kb))
+           ;; Tense is checked on what each pattern concept MATCHED, not on the
+           ;; matched graph's head: in a joined graph the head is whichever
+           ;; sentence came first, and its tense is not the question's.
+           (results (remove-if-not (lambda (r)
+                                     (every (lambda (pair) (tense-agrees-p (car pair) (cdr pair)))
+                                            (getf r :mapping)))
                                    (let ((*package* (find-package :conceptual-graphs)))
-                                     (cg::query head kb))))
+                                     (cg::query head store))))
            (matched (remove-duplicates (mapcar (lambda (r) (getf r :graph)) results))))
       (values (if (eq mood :wh)
                   (remove-duplicates
@@ -89,7 +121,7 @@ SAY-QUERY-RESULTS on the raw results."
               matched))))
 
 (defun tense-agrees-p (pattern-head target-head)
-  "False only when both heads carry a tense and the tenses differ. Projection
+  "False only when both concepts carry a tense and the tenses differ. Projection
 does not look at tense (it is not part of the referent), so without this
 \"does Dave drive a car ?\" would be answered by \"Dave drove a car\". A
 question with no tense, or a fact recorded without one, is not held against."

@@ -7,6 +7,9 @@
 ;;;   (ask  "does the girl drive a car ?")  => NIL
 ;;;   (ask  "who drives a car ?")           => ("[PERSON:Dave]")
 ;;;
+;;; The KB keeps one graph per sentence; ASK answers from a copy joined on
+;;; shared individuals (JOINED-VIEW), so a question can span sentences.
+;;;
 ;;; A question's graph is a query pattern: its events are generic, where a
 ;;; statement's are individuated -- [DRIVE: #9] would match only itself. ASK
 ;;; runs cgraph's QUERY (projection into each KB graph): a yes/no question
@@ -98,7 +101,37 @@
                      (search "is a question" (handler-case (progn (tell "does dave drive a car ?") "")
                                                (error (e) (princ-to-string e)))))
               (check "ASKing a command is refused"
-                     (search "is a command" (ask* "drive the car !"))))))))
+                     (search "is a command" (ask* "drive the car !")))
+
+              ;; The KB is the record; ASK joins a copy.
+              (check "the KB keeps one graph per sentence told"
+                     (= 3 (length (cg::graphs (kb)))) (length (cg::graphs (kb))))
+              (let ((view (joined-view)))
+                (check "the joined view: one Dave ties the three together"
+                       (= 1 (length (cg::graphs view))) (length (cg::graphs view))))
+              (check "  and joining it left the KB as told"
+                     (= 3 (length (cg::graphs (kb)))) (length (cg::graphs (kb))))
+              ;; What the view buys: no one sentence has zelda driving someone
+              ;; who drives a car; "zelda drove dave" and "dave drives a car" do.
+              (check "across sentences: did zelda drive a person who drives a car ? => T"
+                     (eq (ask* "did zelda drive a person who drives a car ?") t)
+                     (ask* "did zelda drive a person who drives a car ?"))
+              (check "across sentences: who drove a person who drives a car ? => Zelda"
+                     (equal (ask* "who drove a person who drives a car ?") '("[WOMAN:Zelda]"))
+                     (ask* "who drove a person who drives a car ?"))
+              (check ":join nil asks the record: no one sentence says it => NIL"
+                     (null (ignore-errors
+                            (ask "did zelda drive a person who drives a car ?" :join nil))))
+
+              ;; Generic concepts do not join: two pies stay two pies.
+              (tell "a girl eats a pie .")
+              (tell "a boy eats a pie .")
+              (check "generic concepts do not join: the view has two more graphs"
+                     (= 3 (length (cg::graphs (joined-view)))) (length (cg::graphs (joined-view))))
+              ;; ... but an entity the discourse linked does.
+              (tell "the girl sees the dog .")
+              (check "the discourse's girl joins the girl's graph in the view"
+                     (= 3 (length (cg::graphs (joined-view)))) (length (cg::graphs (joined-view)))))))))
     (format t "~&extract-ask-headless-test: ~:[FAILED <<<~;passed~]~%" results)
     results))
 
