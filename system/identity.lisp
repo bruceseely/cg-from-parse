@@ -52,7 +52,9 @@
 ;;; Policy
 ;;; ===========================================================================
 
-(defparameter *individuate-events*  t
+(clopt:defoption *individuate-events* t
+  :type boolean
+  :doc
   "When true (the default), every event concept an extraction emits gets its own
 individual referent -- [EAT: #12], `this eating', not eating in general.
 

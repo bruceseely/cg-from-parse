@@ -33,6 +33,12 @@ jobs:
         with:
           path: cg-from-parse
 
+      - name: Checkout clopt
+        uses: actions/checkout@v4
+        with:
+          repository: bruceseely/clopt
+          path: clopt
+
       - name: Checkout parsifal
         uses: actions/checkout@v4
         with:

@@ -145,12 +145,17 @@ so unlike the adjunct/adverb paths they emit here in the case walk.")
   "Concept-type a predicate (verb) lemma is placed under when it must be
 created (see *on-missing-type*). All case relations require an ACT source.")
 
-(defparameter *on-missing-type* :error
+(clopt:defoption *on-missing-type* :error
+  :type (member :error :create :top)
+  :doc
   "Policy when a lemma has no concept type in the loaded catalog:
   :error  — signal (default; safest, keeps extraction faithful to the ontology)
   :create — make the type as a subtype of the contextually-required type
             (predicate -> *predicate-root*; filler -> the relation's dest-type)
-  :top    — use the top type (⊤) as a catch-all")
+  :top    — use the top type (⊤) as a catch-all
+The default for PARSE-AND-EXTRACT, SENTENCE->CG-TEXT and SENTENCE->SAY. TELL
+and ASK pass :create themselves (their :ON-MISSING argument), so this does not
+reach them.")
 
 (defun case-role->relation (role)
   "cgraph relation label for PARSIFAL thematic ROLE, or NIL if unmapped."

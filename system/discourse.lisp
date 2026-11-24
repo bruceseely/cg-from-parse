@@ -54,7 +54,9 @@
 
 (in-package :cg-from-parse)
 
-(defvar *resolve-definites* t
+(clopt:defoption *resolve-definites* t
+  :type boolean
+  :doc
   "When true (the default), definite NPs are resolved against the current
 discourse and spoken with a numbered marker. NIL restores the bare [X: #].")
 
